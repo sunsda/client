@@ -1,0 +1,1287 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>NexusCRM</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI','Hiragino Sans',sans-serif;background:#F1F5F9;min-height:100vh;color:#1E293B}
+button{cursor:pointer;font-family:inherit;border:none;background:none}
+input,select,textarea{font-family:inherit;font-size:13px;border:1.5px solid #E2E8F0;border-radius:8px;padding:9px 12px;width:100%;background:#fff;color:#1E293B;outline:none;transition:border-color .15s,box-shadow .15s}
+input:focus,select:focus,textarea:focus{border-color:#6366F1;box-shadow:0 0 0 3px rgba(99,102,241,.12)}
+input::placeholder,textarea::placeholder{color:#94A3B8}
+textarea{resize:vertical;line-height:1.6}
+select{appearance:none;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8'%3E%3Cpath d='M1 1l5 5 5-5' stroke='%2394A3B8' stroke-width='1.5' fill='none' stroke-linecap='round'/%3E%3C/svg%3E");background-repeat:no-repeat;background-position:right 12px center;padding-right:32px}
+@keyframes spin{to{transform:rotate(360deg)}}
+@keyframes fadein{from{opacity:0;transform:translateY(5px)}to{opacity:1;transform:translateY(0)}}
+.fade{animation:fadein .2s ease}
+.spinner{width:16px;height:16px;border:2px solid #E2E8F0;border-top:2px solid #6366F1;border-radius:50%;animation:spin .7s linear infinite;display:inline-block;vertical-align:middle}
+.modal-overlay{position:absolute;top:0;left:0;width:100%;min-height:100%;background:rgba(15,23,42,.52);display:flex;align-items:flex-start;justify-content:center;padding:60px 16px;z-index:200}
+.modal-box{background:#fff;border-radius:16px;width:520px;max-width:100%;box-shadow:0 20px 60px rgba(0,0,0,.18)}
+.drag-over{background:#EEF2FF!important;border-color:#6366F1!important}
+::-webkit-scrollbar{width:5px;height:5px}
+::-webkit-scrollbar-thumb{background:#CBD5E1;border-radius:99px}
+</style>
+</head>
+<body>
+<div id="app" style="position:relative;min-height:100vh"></div>
+<script>
+(function(){
+
+/* ================================================================
+   設定ストア — ユーザーが自由に変更できる全マスタ
+================================================================ */
+const settings = {
+  // 顧客フォームのカスタムフィールド
+  customerFields: [
+    {id:"f1", label:"氏名",        type:"text",   required:true,  system:true},
+    {id:"f2", label:"会社名",      type:"text",   required:false, system:true},
+    {id:"f3", label:"部署",        type:"text",   required:false, system:true},
+    {id:"f4", label:"役職",        type:"text",   required:false, system:true},
+    {id:"f5", label:"メールアドレス",type:"email", required:true,  system:true},
+    {id:"f6", label:"電話番号",    type:"tel",    required:false, system:true},
+    {id:"f7", label:"住所",        type:"text",   required:false, system:true},
+    {id:"f8", label:"ステータス",  type:"select", required:false, system:true},
+    {id:"f9", label:"スコア",      type:"range",  required:false, system:true},
+    {id:"f10",label:"タグ",        type:"tags",   required:false, system:true},
+    {id:"f11",label:"メモ",        type:"textarea",required:false,system:true},
+  ],
+
+  // 営業フェーズ
+  salesStages: [
+    {id:"first_appt",       label:"初回アポイント",              color:"#64748B"},
+    {id:"first_appt_lost",  label:"初回アポイント（失注）",       color:"#F43F5E"},
+    {id:"proposal",         label:"提案フェーズ",                 color:"#8B5CF6"},
+    {id:"approval",         label:"先方稟議中",                   color:"#F59E0B"},
+    {id:"contracting",      label:"契約手続き中",                 color:"#3B82F6"},
+    {id:"contracted",       label:"契約締結完了（キックオフ前）", color:"#06B6D4"},
+    {id:"supporting",       label:"支援中（請求中）",             color:"#10B981"},
+    {id:"supporting_billed",label:"支援中（請求済み）",           color:"#059669"},
+    {id:"support_ended",    label:"支援終了",                     color:"#94A3B8"},
+    {id:"lost",             label:"失注",                         color:"#EF4444"},
+  ],
+
+  // 活動タイプ
+  activityTypes: [
+    {id:"note",       label:"メモ",          icon:"✏️", color:"#64748B", system:true},
+    {id:"email",      label:"メール",        icon:"📧", color:"#3B82F6", system:true},
+    {id:"call",       label:"電話",          icon:"📞", color:"#10B981", system:true},
+    {id:"meeting",    label:"ミーティング",  icon:"👥", color:"#8B5CF6", system:true},
+    {id:"deal_moved", label:"フェーズ変更",  icon:"🔄", color:"#F59E0B", system:true},
+  ],
+
+  _nid: 100,
+  genId(p){ return p+(++this._nid) },
+};
+
+/* ================================================================
+   データストア
+================================================================ */
+const store = {
+  customers:[
+    {id:"c1",name:"田中 一郎",email:"tanaka@example.co.jp",phone:"03-1234-5678",company:"株式会社サンプル",dept:"営業部",position:"部長",status:"active",tags:["VIP","製造業"],score:85,memo:"重要顧客。年間契約更新見込み。",address:"東京都千代田区〇〇1-2-3",custom:{},created_at:"2025-01-15T09:00:00Z",updated_at:"2025-06-10T14:30:00Z"},
+    {id:"c2",name:"鈴木 花子",email:"suzuki@demo.jp",phone:"06-9876-5432",company:"デモ商事株式会社",dept:"",position:"",status:"active",tags:["新規"],score:60,memo:"",address:"",custom:{},created_at:"2025-03-20T11:00:00Z",updated_at:"2025-06-18T10:00:00Z"},
+    {id:"c3",name:"佐藤 次郎",email:"sato@test.co.jp",phone:"052-111-2222",company:"テスト工業",dept:"",position:"",status:"inactive",tags:["既存"],score:40,memo:"",address:"",custom:{},created_at:"2024-11-05T08:00:00Z",updated_at:"2025-05-01T09:00:00Z"},
+    {id:"c4",name:"山田 三郎",email:"yamada@sample.com",phone:"011-333-4444",company:"サンプル電機",dept:"",position:"",status:"active",tags:["IT","SaaS"],score:72,memo:"",address:"",custom:{},created_at:"2025-04-01T10:00:00Z",updated_at:"2025-06-20T16:00:00Z"},
+  ],
+  activities:[
+    {id:"a1",customer_id:"c1",type:"meeting",content:"初回商談実施。製品デモを実施し、好感触を得た。",user_name:"担当: 山田",created_at:"2025-06-10T14:30:00Z"},
+    {id:"a2",customer_id:"c1",type:"email",content:"提案書を送付。返信待ち。",user_name:"担当: 山田",created_at:"2025-06-12T09:00:00Z"},
+    {id:"a3",customer_id:"c1",type:"deal_moved",content:"フェーズ変更: 初回アポイント → 提案フェーズ",user_name:"システム",created_at:"2025-06-12T09:01:00Z"},
+    {id:"a4",customer_id:"c2",type:"call",content:"電話でヒアリング。予算確認済み。",user_name:"担当: 佐藤",created_at:"2025-06-18T10:00:00Z"},
+    {id:"a5",customer_id:"c4",type:"note",content:"次回フォロー: 来週月曜日にデモ予定。",user_name:"担当: 山田",created_at:"2025-06-20T16:00:00Z"},
+  ],
+  deals:[
+    {id:"d1",customer_id:"c1",title:"エンタープライズプラン導入",amount:2400000,stage:"proposal",probability:60,pipeline:"新規開拓",deal_date:"2025-06-20",memo:"次回MTGで最終確認予定。予算承認済み。",history:[{id:"h1",to_stage:"first_appt",changed_at:"2025-05-01T09:00:00Z"},{id:"h3",to_stage:"proposal",changed_at:"2025-06-12T09:01:00Z"}],created_at:"2025-05-01T09:00:00Z"},
+    {id:"d2",customer_id:"c2",title:"スタータープラン 3ヶ月",amount:90000,stage:"approval",probability:75,pipeline:"既存拡大",deal_date:"2025-06-25",memo:"稟議書を先方が社内回覧中。",history:[{id:"h4",to_stage:"first_appt",changed_at:"2025-05-15T09:00:00Z"},{id:"h6",to_stage:"approval",changed_at:"2025-06-18T10:01:00Z"}],created_at:"2025-05-15T09:00:00Z"},
+    {id:"d3",customer_id:"c4",title:"プロプラン年間契約",amount:600000,stage:"first_appt",probability:30,pipeline:"新規開拓",deal_date:"2025-07-05",memo:"",history:[{id:"h7",to_stage:"first_appt",changed_at:"2025-06-01T09:00:00Z"}],created_at:"2025-06-01T09:00:00Z"},
+    {id:"d4",customer_id:"c3",title:"保守サポート契約更新",amount:120000,stage:"supporting_billed",probability:100,pipeline:"更新",deal_date:"2025-04-20",memo:"自動更新済み。次回更新は来年4月。",history:[{id:"h9",to_stage:"first_appt",changed_at:"2025-04-01T09:00:00Z"},{id:"h10",to_stage:"supporting_billed",changed_at:"2025-04-20T14:00:00Z"}],created_at:"2025-04-01T09:00:00Z"},
+  ],
+
+  _n:200, genId(p){return p+(++this._n)},
+};
+
+/* ================================================================
+   Mock API
+================================================================ */
+const delay=ms=>new Promise(r=>setTimeout(r,ms));
+const nowStr=()=>new Date().toISOString();
+function stageLabel(id){return(settings.salesStages.find(s=>s.id===id)||{label:id}).label}
+function stageColor(id){return(settings.salesStages.find(s=>s.id===id)||{color:"#64748B"}).color}
+const fmt={
+  date(iso){if(!iso)return"-";return new Date(iso).toLocaleString("ja-JP",{month:"short",day:"numeric",hour:"2-digit",minute:"2-digit"})},
+  money(n){return n?"¥"+Number(n).toLocaleString():"¥0"},
+  score(n){return n>=80?"高":n>=50?"中":"低"},
+  scoreColor(n){return n>=80?"#10B981":n>=50?"#F59E0B":"#EF4444"},
+};
+const customersApi={
+  async list(q="",st="all"){await delay(150);return store.customers.filter(c=>{const mq=!q||c.name.includes(q)||c.email.includes(q)||(c.company||"").includes(q);return mq&&(st==="all"||c.status===st)}).sort((a,b)=>b.updated_at.localeCompare(a.updated_at))},
+  async get(id){await delay(80);return store.customers.find(c=>c.id===id)||null},
+  async create(p){await delay(180);const c={...p,id:store.genId("c"),custom:p.custom||{},created_at:nowStr(),updated_at:nowStr()};store.customers.push(c);return c},
+  async update(id,p){await delay(180);const i=store.customers.findIndex(c=>c.id===id);if(i<0)throw new Error("not found");store.customers[i]={...store.customers[i],...p,updated_at:nowStr()};return store.customers[i]},
+  async delete(id){await delay(130);store.customers=store.customers.filter(c=>c.id!==id)},
+};
+const activitiesApi={
+  async listByCustomer(cid){await delay(130);return store.activities.filter(a=>a.customer_id===cid).sort((a,b)=>b.created_at.localeCompare(a.created_at))},
+  async add(p){await delay(150);const a={...p,id:store.genId("a"),created_at:nowStr()};store.activities.push(a);return a},
+};
+const dealsApi={
+  async list(){await delay(170);return store.deals.map(d=>{const c=store.customers.find(x=>x.id===d.customer_id);return{...d,deal_stage_history:d.history,customers:c?{name:c.name,company:c.company}:null}})},
+  async listByCustomer(cid){await delay(120);return store.deals.filter(d=>d.customer_id===cid).map(d=>({...d,deal_stage_history:d.history}))},
+  async create(p){await delay(180);const d={...p,id:store.genId("d"),history:[{id:store.genId("h"),to_stage:p.stage,changed_at:nowStr()}],created_at:nowStr(),updated_at:nowStr()};store.deals.push(d);return d},
+  async updateStage(id,ns){
+    await delay(170);
+    const i=store.deals.findIndex(d=>d.id===id);if(i<0)throw new Error("not found");
+    const old=store.deals[i];
+    store.deals[i].history.push({id:store.genId("h"),to_stage:ns,from_stage:old.stage,changed_at:nowStr()});
+    store.deals[i].stage=ns;store.deals[i].updated_at=nowStr();
+    store.activities.push({id:store.genId("a"),customer_id:old.customer_id,type:"deal_moved",content:"フェーズ変更: "+stageLabel(old.stage)+" → "+stageLabel(ns)+"（"+old.title+"）",user_name:"システム",created_at:nowStr()});
+    return store.deals[i];
+  },
+};
+/* ================================================================
+   DOM ヘルパー
+================================================================ */
+function h(tag,attrs,ch){
+  const el=document.createElement(tag);
+  if(attrs)Object.entries(attrs).forEach(([k,v])=>{
+    if(k==="style"&&typeof v==="object")Object.assign(el.style,v);
+    else if(k.startsWith("on")&&typeof v==="function")el.addEventListener(k.slice(2).toLowerCase(),v);
+    else if(k==="cls")el.className=v;
+    else el.setAttribute(k,v);
+  });
+  (ch||[]).filter(Boolean).forEach(c=>el.appendChild(typeof c==="string"?document.createTextNode(c):c));
+  return el;
+}
+const $=id=>document.getElementById(id);
+function badge(text,color){return h("span",{style:{display:"inline-flex",alignItems:"center",padding:"3px 9px",borderRadius:99,fontSize:11,fontWeight:600,background:color+"1a",color,border:"1px solid "+color+"33"}},[text])}
+function Btn(text,variant,size,onClick,disabled){
+  const V={primary:{bg:"#6366F1",c:"#fff",hov:"#4F46E5"},success:{bg:"#10B981",c:"#fff",hov:"#059669"},secondary:{bg:"#F8FAFC",c:"#475569",hov:"#F1F5F9",b:"1.5px solid #E2E8F0"},danger:{bg:"#FEF2F2",c:"#EF4444",hov:"#FEE2E2",b:"1.5px solid #FECACA"},ghost:{bg:"transparent",c:"#64748B",hov:"#F8FAFC",b:"1.5px solid #E2E8F0"},warning:{bg:"#FFF7ED",c:"#EA580C",hov:"#FFEDD5",b:"1.5px solid #FED7AA"}};
+  const S={sm:{p:"5px 11px",fs:12,r:7},md:{p:"9px 16px",fs:13,r:8},lg:{p:"11px 22px",fs:14,r:9}};
+  const v=V[variant||"primary"],s=S[size||"md"];
+  const el=h("button",{style:{padding:s.p,fontSize:s.fs,borderRadius:s.r,background:v.bg,color:v.c,border:v.b||"none",fontWeight:600,opacity:disabled?.5:1,cursor:disabled?"not-allowed":"pointer",fontFamily:"inherit",transition:"all .15s",display:"inline-flex",alignItems:"center",gap:5}},[text]);
+  if(onClick&&!disabled)el.addEventListener("click",onClick);
+  if(!disabled&&v.hov){el.addEventListener("mouseenter",()=>el.style.background=v.hov);el.addEventListener("mouseleave",()=>el.style.background=v.bg)}
+  return el;
+}
+function card(children,extra){
+  const el=h("div",{style:{background:"#fff",borderRadius:12,border:"1px solid #E2E8F0",padding:"20px",boxShadow:"0 1px 3px rgba(0,0,0,.04)",...(extra||{})}});
+  (Array.isArray(children)?children:[children]).filter(Boolean).forEach(c=>el.appendChild(c));
+  return el;
+}
+function secTitle(t){return h("div",{style:{fontSize:11,fontWeight:700,color:"#94A3B8",letterSpacing:".08em",textTransform:"uppercase",marginBottom:10,paddingBottom:8,borderBottom:"1px solid #F1F5F9"}},[t])}
+function fieldWrap(label,req,child){
+  const w=h("div",{style:{marginBottom:14}});
+  if(label){const L=h("label",{style:{display:"flex",gap:4,fontSize:12,fontWeight:600,color:"#475569",marginBottom:5}},[label]);if(req)L.appendChild(h("span",{style:{color:"#EF4444",fontSize:11}},["*"]));w.appendChild(L)}
+  if(child)w.appendChild(child);return w;
+}
+function mkInput(label,req,props){const el=h("input",{style:{width:"100%",boxSizing:"border-box"},...props});return{wrap:fieldWrap(label,req,el),el}}
+function mkSelect(label,req,opts,val,onCh){
+  const el=h("select",{style:{width:"100%",boxSizing:"border-box"},onChange:onCh});
+  opts.forEach(o=>{const op=h("option",{value:o.value},[o.label]);if(o.value===val)op.selected=true;el.appendChild(op)});
+  return{wrap:fieldWrap(label,req,el),el};
+}
+function spinner(){return h("div",{style:{padding:36,textAlign:"center",color:"#94A3B8",fontSize:13}},[h("span",{cls:"spinner"}),document.createTextNode(" 読み込み中…")])}
+function errBanner(msg,onRetry){return h("div",{style:{background:"#FEF2F2",border:"1px solid #FECACA",borderRadius:8,padding:"10px 14px",marginBottom:12,fontSize:12,color:"#B91C1C",display:"flex",justifyContent:"space-between",alignItems:"center"}},[h("span",null,["⚠️ "+msg]),onRetry?Btn("再試行","ghost","sm",onRetry):null].filter(Boolean))}
+function notifBox(msg){return h("div",{style:{background:"#F0FDF4",border:"1px solid #86EFAC",borderRadius:8,padding:"10px 14px",marginBottom:12,fontSize:12,color:"#166534",fontWeight:600}},[msg])}
+function saveInd(st){if(!st||st==="idle")return null;const M={saving:{t:"💾 保存中…",c:"#F59E0B"},saved:{t:"✓ 保存しました",c:"#10B981"},error:{t:"✗ エラー",c:"#EF4444"}}[st];return M?h("span",{style:{fontSize:11,color:M.c,fontWeight:600}},[M.t]):null}
+function makeAutoSave(fn,ms=2000){let t=null;return(data,onSt)=>{clearTimeout(t);onSt&&onSt("saving");t=setTimeout(async()=>{try{await fn(data);onSt&&onSt("saved");setTimeout(()=>onSt&&onSt("idle"),2000)}catch{onSt&&onSt("error")}},ms)}}
+function Modal(title,bodyFn,footer){
+  const ov=h("div",{cls:"modal-overlay"});
+  const box=h("div",{cls:"modal-box"});
+  const mh=h("div",{style:{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"18px 22px",borderBottom:"1px solid #F1F5F9"}});
+  mh.appendChild(h("h3",{style:{margin:0,fontSize:15,fontWeight:700,color:"#1E293B"}},[title]));
+  const cl=h("button",{style:{width:28,height:28,borderRadius:"50%",background:"#F1F5F9",border:"none",cursor:"pointer",fontSize:16,color:"#64748B",display:"flex",alignItems:"center",justifyContent:"center"}},["×"]);
+  const close=()=>ov.remove();
+  cl.addEventListener("click",close);mh.appendChild(cl);box.appendChild(mh);
+  const mb=h("div",{style:{padding:"18px 22px"}});bodyFn(mb,close);box.appendChild(mb);
+  if(footer){const mf=h("div",{style:{padding:"14px 22px",borderTop:"1px solid #F1F5F9",display:"flex",gap:8,justifyContent:"flex-end"}});footer(mf,close);box.appendChild(mf)}
+  ov.appendChild(box);ov.addEventListener("click",e=>{if(e.target===ov)close()});
+  return{el:ov,close};
+}
+
+/* ================================================================
+   アプリ状態
+================================================================ */
+let _s={tab:"crm",selCust:null,newCust:false,editCust:null};
+function setState(p){_s={..._s,...p};render()}
+
+/* ================================================================
+   顧客フォーム — シンプル・確実な実装
+================================================================ */
+function CustomerForm(initial,onSave,onCancel,isEdit){
+  const baseKeys={name:"",email:"",phone:"",company:"",dept:"",position:"",status:"active",tags:[],score:50,memo:"",address:""};
+  let form={...baseKeys,...(initial||{}),custom:{...((initial||{}).custom||{})}};
+  let tagInput="",saving=false,saveSt="idle",errMsg=null,saved=false;
+  let autoSave=isEdit&&initial?makeAutoSave(async d=>{await onSave(d,true)},2000):null;
+
+  const root=h("div",{style:{maxWidth:800,margin:"0 auto"},cls:"fade"});
+
+  // トップバー
+  const topBar=h("div",{style:{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:20,paddingBottom:16,borderBottom:"2px solid #F1F5F9"}});
+  topBar.appendChild(h("div",null,[
+    h("h2",{style:{margin:0,fontSize:18,fontWeight:800,color:"#1E293B"}},[isEdit?"顧客情報を編集":"新規顧客を登録"]),
+    h("p",{style:{margin:"4px 0 0",fontSize:12,color:"#94A3B8"}},[isEdit?"変更後は保存ボタンを押してください":"*印の項目は必須です"]),
+  ]));
+  const siEl=h("span");
+  const topRight=h("div",{style:{display:"flex",alignItems:"center",gap:8}});
+  topRight.appendChild(siEl);
+  topRight.appendChild(Btn("キャンセル","ghost","md",()=>onCancel&&onCancel()));
+  topBar.appendChild(topRight);
+  root.appendChild(topBar);
+
+  const notifEl=h("div");root.appendChild(notifEl);
+  const errEl=h("div");root.appendChild(errEl);
+  const bodyEl=h("div");root.appendChild(bodyEl);
+
+  function refreshSi(){siEl.innerHTML="";const si=saveInd(saveSt);if(si)siEl.appendChild(si)}
+
+  function onCh(field,val,isCustom){
+    if(isCustom)form.custom[field]=val;else form[field]=val;
+    if(autoSave)autoSave(form,s=>{saveSt=s;refreshSi()});
+  }
+
+  async function doSave(){
+    if(!form.name||!form.email){errMsg="氏名とメールアドレスは必須です";renderBody();return}
+    saving=true;errMsg=null;renderBody();
+    try{await onSave(form);saved=true;saving=false;renderBody();window.scrollTo({top:0,behavior:"smooth"})}
+    catch(e){errMsg=e.message||"保存に失敗しました";saving=false;renderBody()}
+  }
+
+  function renderBody(){
+    bodyEl.innerHTML="";errEl.innerHTML="";notifEl.innerHTML="";
+    if(errMsg)errEl.appendChild(errBanner(errMsg));
+    if(saved&&isEdit)notifEl.appendChild(notifBox("✓ 保存しました"));
+    refreshSi();
+
+    const wrap=card([],{padding:"22px"});
+
+    // ── 基本情報
+    wrap.appendChild(secTitle("基本情報"));
+    const g1=h("div",{style:{display:"grid",gridTemplateColumns:"1fr 1fr",gap:"0 22px",marginBottom:8}});
+    [["name","氏名",true,"text","例: 田中 一郎"],["company","会社名",false,"text","例: 株式会社〇〇"],
+     ["dept","部署",false,"text","例: 営業部"],["position","役職",false,"text","例: 部長"]
+    ].forEach(([k,l,req,t,ph])=>{
+      const el=h("input",{type:t,value:form[k]||"",placeholder:ph,style:{width:"100%",boxSizing:"border-box"}});
+      el.addEventListener("input",e=>onCh(k,e.target.value));
+      g1.appendChild(fieldWrap(l,req,el));
+    });
+    wrap.appendChild(g1);
+
+    // ── 連絡先
+    wrap.appendChild(h("div",{style:{marginTop:8,marginBottom:8}},[secTitle("連絡先")]));
+    const g2=h("div",{style:{display:"grid",gridTemplateColumns:"1fr 1fr",gap:"0 22px",marginBottom:8}});
+    [["email","メールアドレス",true,"email","例: tanaka@company.co.jp"],
+     ["phone","電話番号",false,"tel","例: 03-0000-0000"]
+    ].forEach(([k,l,req,t,ph])=>{
+      const el=h("input",{type:t,value:form[k]||"",placeholder:ph,style:{width:"100%",boxSizing:"border-box"}});
+      el.addEventListener("input",e=>onCh(k,e.target.value));
+      g2.appendChild(fieldWrap(l,req,el));
+    });
+    wrap.appendChild(g2);
+    const addrEl=h("input",{type:"text",value:form.address||"",placeholder:"例: 東京都渋谷区〇〇1-2-3",style:{width:"100%",boxSizing:"border-box"}});
+    addrEl.addEventListener("input",e=>onCh("address",e.target.value));
+    wrap.appendChild(fieldWrap("住所",false,addrEl));
+
+    // ── ステータス・スコア
+    wrap.appendChild(h("div",{style:{marginTop:8,marginBottom:8}},[secTitle("ステータス・評価")]));
+    const g3=h("div",{style:{display:"grid",gridTemplateColumns:"1fr 1fr",gap:"0 22px",marginBottom:8}});
+    const stSel=h("select",{style:{width:"100%",boxSizing:"border-box"}});
+    [{value:"active",label:"有効"},{value:"inactive",label:"無効"}].forEach(o=>{const op=h("option",{value:o.value},[o.label]);if(o.value===form.status)op.selected=true;stSel.appendChild(op)});
+    stSel.addEventListener("change",e=>onCh("status",e.target.value));
+    g3.appendChild(fieldWrap("ステータス",false,stSel));
+
+    const scoreBox=h("div",{style:{marginBottom:14}});
+    const sLbl=h("label",{style:{display:"flex",justifyContent:"space-between",fontSize:12,fontWeight:600,color:"#475569",marginBottom:6}},["スコア",h("span",{style:{fontSize:14,fontWeight:700,color:fmt.scoreColor(form.score)}},[form.score+" ("+fmt.score(form.score)+")"])]);
+    const sRange=h("input",{type:"range",min:0,max:100,value:form.score,step:1,style:{width:"100%",boxSizing:"border-box"}});
+    sRange.addEventListener("input",e=>{
+      form.score=+e.target.value;
+      sLbl.lastChild.textContent=form.score+" ("+fmt.score(form.score)+")";
+      sLbl.lastChild.style.color=fmt.scoreColor(form.score);
+      if(autoSave)autoSave(form,s=>{saveSt=s;refreshSi()});
+    });
+    scoreBox.appendChild(sLbl);scoreBox.appendChild(sRange);
+    g3.appendChild(scoreBox);
+    wrap.appendChild(g3);
+
+    // ── タグ
+    wrap.appendChild(h("div",{style:{marginTop:8,marginBottom:8}},[secTitle("タグ")]));
+    const tagSec=h("div",{style:{marginBottom:14}});
+    const tagList=h("div",{style:{display:"flex",gap:6,flexWrap:"wrap",minHeight:28,marginBottom:8}});
+    form.tags.forEach(t=>{
+      const b=h("button",{style:{display:"inline-flex",alignItems:"center",gap:4,padding:"4px 10px",borderRadius:99,fontSize:12,background:"#EEF2FF",color:"#4F46E5",border:"1px solid #C7D2FE",cursor:"pointer",fontWeight:600}},[t+" ×"]);
+      b.addEventListener("click",()=>{form.tags=form.tags.filter(x=>x!==t);renderBody()});
+      tagList.appendChild(b);
+    });
+    tagSec.appendChild(tagList);
+    const tagRow=h("div",{style:{display:"flex",gap:8}});
+    const tagInp=h("input",{placeholder:"タグを入力してEnterで追加",style:{flex:1,boxSizing:"border-box"}});
+    tagInp.value=tagInput;
+    tagInp.addEventListener("input",e=>tagInput=e.target.value);
+    tagInp.addEventListener("keydown",e=>{
+      if(e.key==="Enter"&&tagInput.trim()&&!form.tags.includes(tagInput.trim())){
+        form.tags=[...form.tags,tagInput.trim()];tagInput="";renderBody();
+      }
+    });
+    tagRow.appendChild(tagInp);
+    tagRow.appendChild(Btn("追加","secondary","sm",()=>{
+      if(tagInput.trim()&&!form.tags.includes(tagInput.trim())){form.tags=[...form.tags,tagInput.trim()];tagInput="";renderBody()}
+    }));
+    tagSec.appendChild(tagRow);
+    wrap.appendChild(tagSec);
+
+    // ── メモ
+    wrap.appendChild(h("div",{style:{marginTop:8,marginBottom:8}},[secTitle("メモ・備考")]));
+    const memoTa=h("textarea",{style:{width:"100%",minHeight:80,boxSizing:"border-box",fontSize:13},placeholder:"自由メモ…"});
+    memoTa.value=form.memo||"";
+    memoTa.addEventListener("input",e=>onCh("memo",e.target.value));
+    wrap.appendChild(fieldWrap("メモ",false,memoTa));
+
+    // ── カスタムフィールド
+    const customFields=settings.customerFields.filter(f=>!f.system);
+    if(customFields.length>0){
+      wrap.appendChild(h("div",{style:{marginTop:8,marginBottom:8}},[secTitle("カスタム項目")]));
+      const gc=h("div",{style:{display:"grid",gridTemplateColumns:"1fr 1fr",gap:"0 22px"}});
+      customFields.forEach(f=>{
+        let el;
+        if(f.type==="text"||f.type==="email"||f.type==="tel"||f.type==="number"||f.type==="url"){
+          el=h("input",{type:f.type,value:form.custom[f.id]||"",placeholder:f.placeholder||"",style:{width:"100%",boxSizing:"border-box"}});
+          el.addEventListener("input",e=>onCh(f.id,e.target.value,true));
+        }else if(f.type==="textarea"){
+          el=h("textarea",{style:{width:"100%",minHeight:60,boxSizing:"border-box",fontSize:13},placeholder:f.placeholder||""});
+          el.value=form.custom[f.id]||"";el.addEventListener("input",e=>onCh(f.id,e.target.value,true));
+        }else if(f.type==="date"){
+          el=h("input",{type:"date",value:form.custom[f.id]||"",style:{width:"100%",boxSizing:"border-box"}});
+          el.addEventListener("input",e=>onCh(f.id,e.target.value,true));
+        }else if(f.type==="select"&&f.options){
+          el=h("select",{style:{width:"100%",boxSizing:"border-box"}});
+          [{value:"",label:"— 選択 —"},...f.options.map(o=>({value:o,label:o}))].forEach(o=>{const op=h("option",{value:o.value},[o.label]);if(o.value===(form.custom[f.id]||""))op.selected=true;el.appendChild(op)});
+          el.addEventListener("change",e=>onCh(f.id,e.target.value,true));
+        }else if(f.type==="checkbox"){
+          const cbWrap=h("div",{style:{display:"flex",alignItems:"center",gap:8,marginBottom:14}});
+          const cb=h("input",{type:"checkbox",style:{width:"auto"}});
+          cb.checked=!!(form.custom[f.id]);cb.addEventListener("change",e=>onCh(f.id,e.target.checked,true));
+          cbWrap.appendChild(cb);cbWrap.appendChild(h("span",{style:{fontSize:13,color:"#1E293B"}},[f.label]));
+          const cw=h("div");if(f.wide)cw.style.gridColumn="span 2";cw.appendChild(cbWrap);gc.appendChild(cw);return;
+        }
+        if(el){const w=fieldWrap(f.label,f.required,el);if(f.wide)w.style.gridColumn="span 2";gc.appendChild(w)}
+      });
+      wrap.appendChild(gc);
+    }
+
+    bodyEl.appendChild(wrap);
+
+    // フッター保存ボタン
+    const footer=h("div",{style:{display:"flex",justifyContent:"flex-end",alignItems:"center",gap:10,marginTop:14,padding:"14px 18px",background:"#fff",borderRadius:12,border:"1px solid #E2E8F0"}});
+    const fsi=saveInd(saveSt);if(fsi)footer.appendChild(fsi);
+    footer.appendChild(Btn("キャンセル","ghost","md",()=>onCancel&&onCancel()));
+    footer.appendChild(Btn(
+      saving?"保存中…":(isEdit?"💾 保存する":"✅ 登録する"),
+      "primary","lg",doSave,
+      saving||!form.name||!form.email
+    ));
+    bodyEl.appendChild(footer);
+  }
+
+  renderBody();
+  return root;
+}
+
+/* ================================================================
+   設定画面
+================================================================ */
+function SettingsPage(){
+  const root=h("div",{cls:"fade"});
+  let activeTab="customer";
+  let notifMsg=null;
+
+  const tabBar=h("div",{style:{display:"flex",gap:0,marginBottom:20,borderBottom:"2px solid #E2E8F0"}});
+  [["customer","👤 顧客項目"],["stages","📋 営業フェーズ"],["activities","🗂 活動タイプ"]].forEach(([id,label])=>{
+    const b=h("button",{style:{padding:"10px 18px",background:"none",border:"none",cursor:"pointer",fontFamily:"inherit",fontSize:13,fontWeight:activeTab===id?700:500,color:activeTab===id?"#6366F1":"#64748B",borderBottom:"2px solid "+(activeTab===id?"#6366F1":"transparent"),marginBottom:"-2px",transition:"all .15s"}},[label]);
+    b.addEventListener("click",()=>{activeTab=id;renderContent()});
+    tabBar.appendChild(b);
+  });
+  root.appendChild(tabBar);
+  const notifEl=h("div");root.appendChild(notifEl);
+  const contentEl=h("div");root.appendChild(contentEl);
+
+  function showNotif(msg){notifEl.innerHTML="";notifEl.appendChild(notifBox("✓ "+msg));setTimeout(()=>notifEl.innerHTML="",2500)}
+
+  /* ── 顧客項目設定 ── */
+  function renderCustomerSettings(){
+    contentEl.innerHTML="";
+    const wrap=h("div",{style:{display:"grid",gridTemplateColumns:"1fr 1fr",gap:20}});
+
+    // 左：現在の項目一覧
+    const left=card([h("div",{style:{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:14}},[
+      h("div",null,[h("div",{style:{fontWeight:700,fontSize:14,color:"#1E293B"}},["現在の項目"]),h("div",{style:{fontSize:11,color:"#94A3B8",marginTop:2}},["ドラッグで並び替え / システム項目は削除不可"])]),
+    ])]);
+    const listEl=h("div");left.appendChild(listEl);
+    function renderFieldList(){
+      listEl.innerHTML="";
+      settings.customerFields.forEach((f,idx)=>{
+        const row=h("div",{style:{display:"flex",alignItems:"center",gap:8,padding:"9px 12px",borderRadius:8,border:"1px solid #E2E8F0",marginBottom:6,background:"#fff",cursor:f.system?"default":"grab",transition:"all .12s"}});
+        // ドラッグハンドル
+        const handle=h("span",{style:{color:"#CBD5E1",fontSize:14,cursor:"grab",userSelect:"none",flexShrink:0}},["⠿"]);
+        row.setAttribute("draggable","true");
+        row.addEventListener("dragstart",e=>{e.dataTransfer.setData("text/plain",idx);row.style.opacity=".5"});
+        row.addEventListener("dragend",()=>row.style.opacity="1");
+        row.addEventListener("dragover",e=>{e.preventDefault();row.style.background="#EEF2FF"});
+        row.addEventListener("dragleave",()=>row.style.background="#fff");
+        row.addEventListener("drop",e=>{
+          e.preventDefault();row.style.background="#fff";
+          const from=parseInt(e.dataTransfer.getData("text/plain"));
+          if(from===idx)return;
+          const arr=settings.customerFields;
+          const item=arr.splice(from,1)[0];arr.splice(idx,0,item);
+          renderFieldList();showNotif("並び順を更新しました");
+        });
+        row.appendChild(handle);
+        // タイプバッジ
+        const typeColors={text:"#3B82F6",email:"#8B5CF6",tel:"#10B981",textarea:"#F59E0B",select:"#06B6D4",range:"#EF4444",tags:"#EC4899",date:"#F97316",number:"#64748B",url:"#0EA5E9",checkbox:"#84CC16"};
+        row.appendChild(badge(f.type,typeColors[f.type]||"#64748B"));
+        row.appendChild(h("span",{style:{flex:1,fontSize:13,fontWeight:600,color:"#1E293B"}},[f.label]));
+        if(f.required)row.appendChild(badge("必須","#EF4444"));
+        if(f.system)row.appendChild(h("span",{style:{fontSize:10,color:"#94A3B8",background:"#F1F5F9",padding:"2px 7px",borderRadius:99}},["システム"]));
+        // 削除ボタン（カスタムのみ）
+        if(!f.system){
+          const del=h("button",{style:{padding:"3px 8px",borderRadius:6,background:"#FEF2F2",color:"#EF4444",border:"1px solid #FECACA",fontSize:11,cursor:"pointer",fontWeight:600,flexShrink:0}},["削除"]);
+          del.addEventListener("click",()=>{if(confirm("「"+f.label+"」を削除しますか？")){settings.customerFields.splice(idx,1);renderFieldList();showNotif("項目を削除しました")}});
+          row.appendChild(del);
+        }
+        listEl.appendChild(row);
+      });
+    }
+    renderFieldList();
+
+    // 右：新規項目追加
+    let nf={label:"",type:"text",required:false,wide:false,placeholder:"",options:""};
+    const right=card([h("div",{style:{fontWeight:700,fontSize:14,color:"#1E293B",marginBottom:14}},["＋ 新しい項目を追加"])]);
+    const addErr=h("div");right.appendChild(addErr);
+    const addForm=h("div");right.appendChild(addForm);
+
+    function renderAddForm(){
+      addForm.innerHTML="";
+      const{wrap:lw,el:lEl}=mkInput("項目名",true,{value:nf.label,placeholder:"例: 担当業界"});
+      lEl.addEventListener("input",e=>nf.label=e.target.value);addForm.appendChild(lw);
+
+      const{wrap:tw}=mkSelect("種別",false,[
+        {value:"text",label:"📝 テキスト"},
+        {value:"textarea",label:"📄 テキストエリア"},
+        {value:"number",label:"🔢 数値"},
+        {value:"email",label:"📧 メール"},
+        {value:"tel",label:"📞 電話番号"},
+        {value:"url",label:"🔗 URL"},
+        {value:"date",label:"📅 日付"},
+        {value:"select",label:"📋 セレクト（選択肢）"},
+        {value:"checkbox",label:"☑️ チェックボックス"},
+      ],nf.type,e=>{nf.type=e.target.value;renderAddForm()});
+      addForm.appendChild(tw);
+
+      const{wrap:pw,el:pEl}=mkInput("プレースホルダー",false,{value:nf.placeholder,placeholder:"入力例のテキスト"});
+      pEl.addEventListener("input",e=>nf.placeholder=e.target.value);addForm.appendChild(pw);
+
+      if(nf.type==="select"){
+        const{wrap:ow,el:oEl}=mkInput("選択肢（カンマ区切り）",false,{value:nf.options,placeholder:"例: 製造業,IT,金融"});
+        oEl.addEventListener("input",e=>nf.options=e.target.value);addForm.appendChild(ow);
+      }
+
+      const optRow=h("div",{style:{display:"flex",gap:16,marginBottom:14}});
+      const reqWrap=h("div",{style:{display:"flex",alignItems:"center",gap:6}});
+      const reqCb=h("input",{type:"checkbox",style:{width:"auto"}});reqCb.checked=nf.required;reqCb.addEventListener("change",e=>nf.required=e.target.checked);
+      reqWrap.appendChild(reqCb);reqWrap.appendChild(h("span",{style:{fontSize:12,color:"#475569",fontWeight:600}},["必須"]));
+      const wideWrap=h("div",{style:{display:"flex",alignItems:"center",gap:6}});
+      const wideCb=h("input",{type:"checkbox",style:{width:"auto"}});wideCb.checked=nf.wide;wideCb.addEventListener("change",e=>nf.wide=e.target.checked);
+      wideWrap.appendChild(wideCb);wideWrap.appendChild(h("span",{style:{fontSize:12,color:"#475569",fontWeight:600}},["幅広表示（2列分）"]));
+      optRow.appendChild(reqWrap);optRow.appendChild(wideWrap);
+      addForm.appendChild(optRow);
+
+      addForm.appendChild(Btn("➕ この項目を追加","primary","md",()=>{
+        addErr.innerHTML="";
+        if(!nf.label.trim()){addErr.appendChild(errBanner("項目名を入力してください"));return}
+        if(settings.customerFields.some(f=>f.label===nf.label.trim())){addErr.appendChild(errBanner("同じ名前の項目がすでに存在します"));return}
+        const newField={id:settings.genId("cf"),label:nf.label.trim(),type:nf.type,required:nf.required,wide:nf.wide,system:false,placeholder:nf.placeholder};
+        if(nf.type==="select"&&nf.options)newField.options=nf.options.split(",").map(s=>s.trim()).filter(Boolean);
+        settings.customerFields.push(newField);
+        nf={label:"",type:"text",required:false,wide:false,placeholder:"",options:""};
+        renderAddForm();renderFieldList();showNotif("「"+newField.label+"」を追加しました");
+      }));
+    }
+    renderAddForm();
+    wrap.appendChild(left);wrap.appendChild(right);contentEl.appendChild(wrap);
+  }
+
+  /* ── 営業フェーズ設定 ── */
+  function renderStageSettings(){
+    contentEl.innerHTML="";
+    const wrap=h("div",{style:{display:"grid",gridTemplateColumns:"1fr 1fr",gap:20}});
+
+    const left=card([h("div",{style:{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:14}},[
+      h("div",null,[h("div",{style:{fontWeight:700,fontSize:14,color:"#1E293B"}},["現在のフェーズ"]),h("div",{style:{fontSize:11,color:"#94A3B8",marginTop:2}},["ドラッグで順序変更"])]),
+    ])]);
+    const listEl=h("div");left.appendChild(listEl);
+
+    function renderStageList(){
+      listEl.innerHTML="";
+      settings.salesStages.forEach((s,idx)=>{
+        const row=h("div",{style:{display:"flex",alignItems:"center",gap:8,padding:"9px 12px",borderRadius:8,border:"1px solid #E2E8F0",marginBottom:6,background:"#fff",cursor:"grab"}});
+        row.setAttribute("draggable","true");
+        row.addEventListener("dragstart",e=>{e.dataTransfer.setData("text/plain",idx);row.style.opacity=".5"});
+        row.addEventListener("dragend",()=>row.style.opacity="1");
+        row.addEventListener("dragover",e=>{e.preventDefault();row.style.background="#F8FAFC"});
+        row.addEventListener("dragleave",()=>row.style.background="#fff");
+        row.addEventListener("drop",e=>{
+          e.preventDefault();row.style.background="#fff";
+          const from=parseInt(e.dataTransfer.getData("text/plain"));
+          if(from===idx)return;
+          const item=settings.salesStages.splice(from,1)[0];settings.salesStages.splice(idx,0,item);
+          renderStageList();showNotif("フェーズの順序を更新しました");
+        });
+        row.appendChild(h("span",{style:{color:"#CBD5E1",fontSize:14,cursor:"grab",userSelect:"none"}},["⠿"]));
+        row.appendChild(h("span",{style:{width:12,height:12,borderRadius:"50%",background:s.color,display:"inline-block",flexShrink:0}}));
+        row.appendChild(h("span",{style:{flex:1,fontSize:13,fontWeight:600,color:"#1E293B"}},[s.label]));
+        // 色変更
+        const colorInp=h("input",{type:"color",value:s.color,style:{width:28,height:28,border:"none",borderRadius:6,cursor:"pointer",padding:2,background:"none"}});
+        colorInp.addEventListener("input",e=>{s.color=e.target.value;renderStageList();showNotif("色を変更しました")});
+        row.appendChild(colorInp);
+        const del=h("button",{style:{padding:"3px 8px",borderRadius:6,background:"#FEF2F2",color:"#EF4444",border:"1px solid #FECACA",fontSize:11,cursor:"pointer",fontWeight:600}},["削除"]);
+        del.addEventListener("click",()=>{if(confirm("「"+s.label+"」を削除しますか？")){settings.salesStages.splice(idx,1);renderStageList();showNotif("フェーズを削除しました")}});
+        row.appendChild(del);
+        listEl.appendChild(row);
+      });
+    }
+    renderStageList();
+
+    // 追加フォーム
+    let ns={label:"",color:"#6366F1"};
+    const right=card([h("div",{style:{fontWeight:700,fontSize:14,color:"#1E293B",marginBottom:14}},["＋ フェーズを追加"])]);
+    const aErr=h("div");right.appendChild(aErr);
+    const{wrap:lw,el:lEl}=mkInput("フェーズ名",true,{value:"",placeholder:"例: 提案書送付済み"});
+    lEl.addEventListener("input",e=>ns.label=e.target.value);right.appendChild(lw);
+    const colorRow=h("div",{style:{display:"flex",alignItems:"center",gap:10,marginBottom:14}});
+    colorRow.appendChild(h("label",{style:{fontSize:12,fontWeight:600,color:"#475569"}},["色"]));
+    const cInp=h("input",{type:"color",value:ns.color,style:{width:40,height:34,border:"1.5px solid #E2E8F0",borderRadius:8,cursor:"pointer",padding:3}});
+    cInp.addEventListener("input",e=>ns.color=e.target.value);colorRow.appendChild(cInp);
+    right.appendChild(colorRow);
+    right.appendChild(Btn("➕ フェーズを追加","primary","md",()=>{
+      aErr.innerHTML="";
+      if(!ns.label.trim()){aErr.appendChild(errBanner("フェーズ名を入力してください"));return}
+      if(settings.salesStages.some(s=>s.label===ns.label.trim())){aErr.appendChild(errBanner("同じ名前のフェーズがあります"));return}
+      settings.salesStages.push({id:settings.genId("stage"),label:ns.label.trim(),color:ns.color});
+      lEl.value="";ns={label:"",color:"#6366F1"};
+      renderStageList();showNotif("「"+ns.label||"フェーズ"+"」を追加しました");
+    }));
+    wrap.appendChild(left);wrap.appendChild(right);contentEl.appendChild(wrap);
+  }
+
+  /* ── 活動タイプ設定 ── */
+  function renderActivitySettings(){
+    contentEl.innerHTML="";
+    const wrap=h("div",{style:{display:"grid",gridTemplateColumns:"1fr 1fr",gap:20}});
+
+    const left=card([h("div",{style:{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:14}},[
+      h("div",null,[h("div",{style:{fontWeight:700,fontSize:14,color:"#1E293B"}},["現在の活動タイプ"]),h("div",{style:{fontSize:11,color:"#94A3B8",marginTop:2}},["システムタイプは削除不可"])]),
+    ])]);
+    const listEl=h("div");left.appendChild(listEl);
+
+    function renderActList(){
+      listEl.innerHTML="";
+      settings.activityTypes.forEach((a,idx)=>{
+        const row=h("div",{style:{display:"flex",alignItems:"center",gap:8,padding:"9px 12px",borderRadius:8,border:"1px solid #E2E8F0",marginBottom:6,background:"#fff"}});
+        row.appendChild(h("span",{style:{fontSize:18}},[a.icon]));
+        row.appendChild(h("span",{style:{flex:1,fontSize:13,fontWeight:600,color:"#1E293B"}},[a.label]));
+        row.appendChild(badge(a.label,a.color));
+        if(a.system)row.appendChild(h("span",{style:{fontSize:10,color:"#94A3B8",background:"#F1F5F9",padding:"2px 7px",borderRadius:99}},["システム"]));
+        if(!a.system){
+          const del=h("button",{style:{padding:"3px 8px",borderRadius:6,background:"#FEF2F2",color:"#EF4444",border:"1px solid #FECACA",fontSize:11,cursor:"pointer",fontWeight:600}},["削除"]);
+          del.addEventListener("click",()=>{if(confirm("「"+a.label+"」を削除しますか？")){settings.activityTypes.splice(idx,1);renderActList();showNotif("活動タイプを削除しました")}});
+          row.appendChild(del);
+        }
+        listEl.appendChild(row);
+      });
+    }
+    renderActList();
+
+    // 追加フォーム
+    let na={label:"",icon:"📌",color:"#6366F1"};
+    const right=card([h("div",{style:{fontWeight:700,fontSize:14,color:"#1E293B",marginBottom:14}},["＋ 活動タイプを追加"])]);
+    const aErr=h("div");right.appendChild(aErr);
+    const{wrap:lw,el:lEl}=mkInput("タイプ名",true,{value:"",placeholder:"例: 訪問"});
+    lEl.addEventListener("input",e=>na.label=e.target.value);right.appendChild(lw);
+    const{wrap:iw,el:iEl}=mkInput("アイコン（絵文字1文字）",false,{value:"📌",placeholder:"📌",style:{width:"100%",boxSizing:"border-box",fontSize:18,textAlign:"center"}});
+    iEl.addEventListener("input",e=>na.icon=[...e.target.value][0]||"📌");right.appendChild(iw);
+    const colorRow2=h("div",{style:{display:"flex",alignItems:"center",gap:10,marginBottom:14}});
+    colorRow2.appendChild(h("label",{style:{fontSize:12,fontWeight:600,color:"#475569"}},["色"]));
+    const cInp2=h("input",{type:"color",value:na.color,style:{width:40,height:34,border:"1.5px solid #E2E8F0",borderRadius:8,cursor:"pointer",padding:3}});
+    cInp2.addEventListener("input",e=>na.color=e.target.value);colorRow2.appendChild(cInp2);
+    right.appendChild(colorRow2);
+    right.appendChild(Btn("➕ タイプを追加","primary","md",()=>{
+      aErr.innerHTML="";
+      if(!na.label.trim()){aErr.appendChild(errBanner("タイプ名を入力してください"));return}
+      settings.activityTypes.push({id:settings.genId("at"),label:na.label.trim(),icon:na.icon,color:na.color,system:false});
+      lEl.value="";na={label:"",icon:"📌",color:"#6366F1"};
+      renderActList();showNotif("活動タイプを追加しました");
+    }));
+    wrap.appendChild(left);wrap.appendChild(right);contentEl.appendChild(wrap);
+  }
+
+  function renderContent(){
+    // タブのアクティブ状態を更新
+    Array.from(tabBar.children).forEach((b,i)=>{
+      const id=["customer","stages","activities"][i];
+      const a=activeTab===id;
+      b.style.fontWeight=a?700:500;b.style.color=a?"#6366F1":"#64748B";b.style.borderBottomColor=a?"#6366F1":"transparent";
+    });
+    if(activeTab==="customer")renderCustomerSettings();
+    else if(activeTab==="stages")renderStageSettings();
+    else renderActivitySettings();
+  }
+
+  renderContent();return root;
+}
+
+/* ================================================================
+   顧客一覧
+================================================================ */
+function CustomerList(){
+  const root=h("div",{cls:"fade"});
+  let search="",filter="all",customers=[],loading=true,errMsg=null;
+  const notifEl=h("div");root.appendChild(notifEl);
+  const errEl=h("div");root.appendChild(errEl);
+  const tb=h("div",{style:{display:"flex",gap:10,marginBottom:16,flexWrap:"wrap",alignItems:"center"}});
+  const srch=h("input",{placeholder:"🔍  名前・メール・会社名で検索…",style:{flex:1,minWidth:180,boxSizing:"border-box"}});
+  const fSel=h("select",{style:{width:"auto",padding:"9px 32px 9px 12px"}});
+  ["all:すべて","active:有効","inactive:無効"].forEach(s=>{const[v,l]=s.split(":");fSel.appendChild(h("option",{value:v},[l]))});
+  tb.appendChild(srch);tb.appendChild(fSel);
+  tb.appendChild(Btn("➕ 顧客追加","primary","md",()=>setState({newCust:true})));
+  root.appendChild(tb);
+  const tableWrap=h("div");root.appendChild(tableWrap);
+  const countEl=h("div",{style:{marginTop:8,fontSize:12,color:"#94A3B8"}});root.appendChild(countEl);
+
+  async function load(){loading=true;errMsg=null;renderTable();try{customers=await customersApi.list(search,filter)}catch(e){errMsg=e.message}loading=false;renderTable()}
+  function showNotif(msg){notifEl.innerHTML="";notifEl.appendChild(notifBox("✓ "+msg));setTimeout(()=>notifEl.innerHTML="",3000)}
+  function renderTable(){
+    tableWrap.innerHTML="";errEl.innerHTML="";
+    if(errMsg){errEl.appendChild(errBanner(errMsg,load));countEl.textContent="";return}
+    if(loading){tableWrap.appendChild(spinner());countEl.textContent="…";return}
+    const statusC={active:"#10B981",inactive:"#94A3B8"},statusL={active:"有効",inactive:"無効"};
+    const wrap=h("div",{style:{border:"1px solid #E2E8F0",borderRadius:12,overflow:"hidden",boxShadow:"0 1px 3px rgba(0,0,0,.04)"}});
+    const tbl=h("table",{style:{width:"100%",borderCollapse:"collapse",fontSize:13,background:"#fff"}});
+    const thead=h("thead");
+    const hr=h("tr",{style:{background:"#F8FAFC"}});
+    ["顧客名","会社・部署","スコア","タグ","更新日","操作"].forEach(t=>hr.appendChild(h("th",{style:{padding:"10px 13px",textAlign:"left",fontWeight:700,color:"#64748B",borderBottom:"1px solid #E2E8F0",whiteSpace:"nowrap",fontSize:11,letterSpacing:".03em"}},[t])));
+    thead.appendChild(hr);tbl.appendChild(thead);
+    const tbody=h("tbody");
+    if(!customers.length){const tr=h("tr");tr.appendChild(h("td",{colspan:6,style:{padding:36,textAlign:"center",color:"#94A3B8",fontSize:13}},["該当する顧客が見つかりません"]));tbody.appendChild(tr)}
+    customers.forEach((c,i)=>{
+      const tr=h("tr",{style:{background:"#fff",borderBottom:"1px solid #F1F5F9",transition:"background .1s"}});
+      tr.addEventListener("mouseenter",()=>tr.style.background="#F8FAFC");tr.addEventListener("mouseleave",()=>tr.style.background="#fff");
+      const nTd=h("td",{style:{padding:"10px 13px"}});
+      const nb=h("button",{style:{background:"none",border:"none",cursor:"pointer",fontWeight:700,color:"#6366F1",fontSize:13,fontFamily:"inherit",padding:0,display:"block",marginBottom:3}},[c.name]);
+      nb.addEventListener("click",()=>setState({selCust:c.id}));nTd.appendChild(nb);nTd.appendChild(badge(statusL[c.status],statusC[c.status]));tr.appendChild(nTd);
+      const cTd=h("td",{style:{padding:"10px 13px",fontSize:12}});
+      cTd.appendChild(h("div",{style:{color:"#374151",fontWeight:500}},[c.company||"-"]));
+      if(c.dept||c.position)cTd.appendChild(h("div",{style:{color:"#94A3B8",fontSize:11,marginTop:2}},[(c.dept||"")+(c.dept&&c.position?" / ":"")+(c.position||"")]));
+      tr.appendChild(cTd);
+      const sTd=h("td",{style:{padding:"10px 13px"}});
+      sTd.appendChild(h("div",{style:{fontWeight:700,color:fmt.scoreColor(c.score),fontSize:14,marginBottom:3}},[c.score+" ("+fmt.score(c.score)+")"]));
+      const bar=h("div",{style:{width:52,height:4,background:"#F1F5F9",borderRadius:99,overflow:"hidden"}});bar.appendChild(h("div",{style:{width:c.score+"%",height:"100%",background:fmt.scoreColor(c.score),borderRadius:99}}));sTd.appendChild(bar);tr.appendChild(sTd);
+      const tagTd=h("td",{style:{padding:"10px 13px"}});const tw=h("div",{style:{display:"flex",gap:4,flexWrap:"wrap"}});c.tags.forEach(t=>tw.appendChild(badge(t,"#8B5CF6")));tagTd.appendChild(tw);tr.appendChild(tagTd);
+      tr.appendChild(h("td",{style:{padding:"10px 13px",color:"#94A3B8",fontSize:11,whiteSpace:"nowrap"}},[fmt.date(c.updated_at)]));
+      const aTd=h("td",{style:{padding:"10px 13px"}});const aw=h("div",{style:{display:"flex",gap:6}});
+      aw.appendChild(Btn("✏️ 編集・更新","secondary","sm",()=>setState({editCust:c.id})));
+      aw.appendChild(Btn("削除","danger","sm",async()=>{if(!confirm("「"+c.name+"」を削除しますか？"))return;try{await customersApi.delete(c.id);showNotif(c.name+" を削除しました");load()}catch(e){errMsg=e.message;renderTable()}}));
+      aTd.appendChild(aw);tr.appendChild(aTd);tbody.appendChild(tr);
+    });
+    tbl.appendChild(tbody);wrap.appendChild(tbl);tableWrap.appendChild(wrap);countEl.textContent=customers.length+" 件";
+  }
+  srch.addEventListener("input",e=>{search=e.target.value;load()});fSel.addEventListener("change",e=>{filter=e.target.value;load()});
+  load();return root;
+}
+
+/* ================================================================
+   顧客詳細
+================================================================ */
+function CustomerDetail(customerId){
+  const root=h("div",{cls:"fade"});
+  let customer=null,activities=[],deals=[],loading=true,errMsg=null,actType="note";
+  const bb=Btn("← 一覧に戻る","ghost","sm",()=>setState({selCust:null}));bb.style.marginBottom="14px";root.appendChild(bb);
+
+  // 上部アクションバー
+  const actionBar=h("div",{style:{display:"flex",justifyContent:"space-between",alignItems:"center",background:"#fff",border:"1px solid #E2E8F0",borderRadius:10,padding:"10px 16px",marginBottom:16,boxShadow:"0 1px 3px rgba(0,0,0,.04)"}});
+  const abLeft=h("div",{style:{fontSize:12,color:"#64748B"}},["顧客情報を更新・編集できます"]);
+  const abRight=h("div",{style:{display:"flex",gap:8}});
+  abRight.appendChild(Btn("✏️ 情報を編集・更新","primary","md",()=>setState({editCust:customerId})));
+  actionBar.appendChild(abLeft);actionBar.appendChild(abRight);
+  root.appendChild(actionBar);
+
+  const errEl=h("div");root.appendChild(errEl);const mainEl=h("div");root.appendChild(mainEl);
+  async function load(){
+    loading=true;errMsg=null;renderMain();
+    try{[customer,activities,deals]=await Promise.all([customersApi.get(customerId),activitiesApi.listByCustomer(customerId),dealsApi.listByCustomer(customerId)]);if(!customer)throw new Error("顧客が見つかりません")}
+    catch(e){errMsg=e.message}loading=false;renderMain();
+  }
+  function renderMain(){
+    mainEl.innerHTML="";errEl.innerHTML="";
+    if(errMsg){errEl.appendChild(errBanner(errMsg,load));return}
+    if(loading){mainEl.appendChild(spinner());return}
+    const grid=h("div",{style:{display:"grid",gridTemplateColumns:"1fr 300px",gap:18}});
+    const left=h("div");
+    // カスタムフィールドの表示値を収集
+    const customFields=settings.customerFields.filter(f=>!f.system);
+    left.appendChild(card([
+      h("div",{style:{display:"flex",justifyContent:"space-between",alignItems:"start",marginBottom:14}},[
+        h("div",null,[h("h2",{style:{margin:0,fontSize:18,fontWeight:800,color:"#1E293B"}},[customer.name]),h("div",{style:{color:"#64748B",fontSize:12,marginTop:3}},[customer.company||"",(customer.dept?" · "+customer.dept:"")])]),
+        h("div",{style:{display:"flex",gap:8,alignItems:"center"}},[badge(customer.status==="active"?"有効":"無効",customer.status==="active"?"#10B981":"#94A3B8"),Btn("✏️ 編集","secondary","sm",()=>setState({editCust:customerId}))]),
+      ]),
+      h("div",{style:{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8,fontSize:12,marginBottom:12}},
+        [["メール",customer.email],["電話",customer.phone||"-"],["住所",customer.address||"-"],["役職",customer.position||"-"],
+         ...customFields.filter(f=>customer.custom&&customer.custom[f.id]).map(f=>[f.label,String(customer.custom[f.id])])
+        ].map(([k,v])=>h("div",{style:{background:"#F8FAFC",borderRadius:8,padding:"9px 11px"}},[h("div",{style:{fontSize:10,color:"#94A3B8",fontWeight:700,marginBottom:2,textTransform:"uppercase",letterSpacing:".05em"}},[k]),h("div",{style:{color:"#1E293B",fontWeight:500,wordBreak:"break-all"}},[v])]))
+      ),
+      h("div",{style:{display:"flex",alignItems:"center",gap:10,marginBottom:customer.tags.length?12:0}},[
+        h("span",{style:{fontSize:11,color:"#94A3B8",fontWeight:700,whiteSpace:"nowrap"}},["スコア"]),
+        h("div",{style:{flex:1,height:5,background:"#F1F5F9",borderRadius:99,overflow:"hidden"}},[h("div",{style:{width:customer.score+"%",height:"100%",background:fmt.scoreColor(customer.score),borderRadius:99}})]),
+        h("span",{style:{fontSize:14,fontWeight:800,color:fmt.scoreColor(customer.score),whiteSpace:"nowrap"}},[customer.score+" ("+fmt.score(customer.score)+")"]),
+      ]),
+      customer.tags.length?h("div",{style:{display:"flex",gap:5,flexWrap:"wrap",marginBottom:customer.memo?10:0}},customer.tags.map(t=>badge(t,"#8B5CF6"))):null,
+      customer.memo?h("div",{style:{background:"#FFFBEB",borderRadius:8,padding:"9px 12px",fontSize:12,color:"#92400E",borderLeft:"3px solid #F59E0B"}},[h("b",null,["メモ: "]),customer.memo]):null,
+    ].filter(Boolean),{marginBottom:16}));
+
+    // 活動記録
+    const actCard=card([h("div",{style:{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:10}},[h("h3",{style:{margin:0,fontSize:13,fontWeight:700,color:"#1E293B"}},["活動を記録"]),h("span",{id:"ns"+customerId})])],{marginBottom:14});
+    const typeRow=h("div",{style:{display:"flex",gap:5,marginBottom:10,flexWrap:"wrap"}});
+    settings.activityTypes.filter(a=>a.id!=="deal_moved").forEach(a=>{
+      const b=h("button",{style:{padding:"5px 11px",borderRadius:99,fontSize:12,border:"1.5px solid "+(actType===a.id?"#6366F1":"#E2E8F0"),background:actType===a.id?"#EEF2FF":"#fff",color:actType===a.id?"#4F46E5":"#64748B",cursor:"pointer",fontFamily:"inherit",fontWeight:actType===a.id?700:500,transition:"all .12s"}},[a.icon+" "+a.label]);
+      b.addEventListener("click",()=>{actType=a.id;renderMain()});typeRow.appendChild(b);
+    });
+    actCard.appendChild(typeRow);
+    const ta=h("textarea",{style:{width:"100%",minHeight:68,boxSizing:"border-box",fontSize:13,marginBottom:10},placeholder:"活動内容を入力…"});
+    actCard.appendChild(ta);
+    actCard.appendChild(h("div",{style:{display:"flex",justifyContent:"flex-end"}},[Btn("💾 記録を保存","primary","md",async()=>{
+      if(!ta.value.trim())return;
+      const nsEl=$("ns"+customerId);if(nsEl){nsEl.innerHTML="";const si=saveInd("saving");if(si)nsEl.appendChild(si)}
+      try{const a=await activitiesApi.add({customer_id:customerId,type:actType,content:ta.value,user_id:"u1",user_name:"担当: 山田"});activities=[a,...activities];ta.value="";const nsEl2=$("ns"+customerId);if(nsEl2){nsEl2.innerHTML="";const si=saveInd("saved");if(si)nsEl2.appendChild(si);setTimeout(()=>{if(nsEl2)nsEl2.innerHTML=""},2000)}renderTimeline()}
+      catch{const nsEl3=$("ns"+customerId);if(nsEl3){nsEl3.innerHTML="";const si=saveInd("error");if(si)nsEl3.appendChild(si)}}
+    })]));
+    left.appendChild(actCard);
+    left.appendChild(h("h3",{style:{fontSize:13,fontWeight:700,color:"#1E293B",marginBottom:10}},["活動タイムライン"]));
+    const tlEl=h("div");left.appendChild(tlEl);
+    function renderTimeline(){
+      tlEl.innerHTML="";
+      if(!activities.length){tlEl.appendChild(h("div",{style:{color:"#94A3B8",fontSize:12,textAlign:"center",padding:20,background:"#F8FAFC",borderRadius:8}},["まだ活動記録がありません"]));return}
+      activities.forEach((a,i)=>{
+        const t=settings.activityTypes.find(x=>x.id===a.type)||{label:a.type,icon:"📝",color:"#64748B"};
+        const row=h("div",{style:{display:"flex",gap:10,marginBottom:12}});
+        const ic=h("div",{style:{display:"flex",flexDirection:"column",alignItems:"center"}});
+        ic.appendChild(h("div",{style:{width:30,height:30,borderRadius:"50%",background:t.color+"18",border:"2px solid "+t.color+"30",display:"flex",alignItems:"center",justifyContent:"center",fontSize:12,flexShrink:0}},[t.icon]));
+        if(i<activities.length-1)ic.appendChild(h("div",{style:{width:1,flex:1,background:"#E2E8F0",marginTop:3}}));
+        row.appendChild(ic);
+        const bd=h("div",{style:{flex:1,background:"#F8FAFC",borderRadius:9,padding:"9px 12px",border:"1px solid #F1F5F9"}});
+        bd.appendChild(h("div",{style:{display:"flex",justifyContent:"space-between",marginBottom:4}},[badge(t.label,t.color),h("span",{style:{fontSize:10,color:"#94A3B8"}},[fmt.date(a.created_at)])]));
+        bd.appendChild(h("div",{style:{fontSize:12,color:"#374151",lineHeight:1.6}},[a.content]));
+        bd.appendChild(h("div",{style:{fontSize:10,color:"#94A3B8",marginTop:3}},[a.user_name||""]));
+        row.appendChild(bd);tlEl.appendChild(row);
+      });
+    }
+    renderTimeline();
+    const right=h("div");
+    const dCard=card([h("h3",{style:{margin:"0 0 10px",fontSize:13,fontWeight:700,color:"#1E293B"}},["関連商談"])]);
+    if(!deals.length)dCard.appendChild(h("div",{style:{color:"#94A3B8",fontSize:12,textAlign:"center",padding:16}},["商談なし"]));
+    deals.forEach(d=>{
+      const sc=stageColor(d.stage);
+      const dc=h("div",{style:{border:"1px solid #E2E8F0",borderRadius:9,padding:11,marginBottom:9}});
+      dc.appendChild(h("div",{style:{fontWeight:700,fontSize:12,color:"#1E293B",marginBottom:4}},[d.title]));
+      dc.appendChild(h("div",{style:{fontSize:13,color:"#059669",fontWeight:700,marginBottom:7}},[fmt.money(d.amount)]));
+      dc.appendChild(h("div",{style:{display:"flex",justifyContent:"space-between",alignItems:"center"}},[badge(stageLabel(d.stage),sc),h("span",{style:{fontSize:10,color:"#94A3B8"}},["確度 "+d.probability+"%"])]));
+      dCard.appendChild(dc);
+    });
+    right.appendChild(dCard);
+    grid.appendChild(left);grid.appendChild(right);mainEl.appendChild(grid);
+  }
+  load();return root;
+}
+
+/* ================================================================
+   営業パイプライン
+================================================================ */
+function SalesPipeline(){
+  const root=h("div",{cls:"fade"});
+  let deals=[],customers=[],loading=true,errMsg=null,dragId=null,viewMode="kanban",filterStage="all",searchQ="";
+
+  const errEl=h("div");root.appendChild(errEl);
+
+  /* ── KPI バー ── */
+  const kpiEl=h("div",{style:{display:"grid",gridTemplateColumns:"repeat(5,1fr)",gap:10,marginBottom:18}});
+  root.appendChild(kpiEl);
+
+  /* ── フラッシュ ── */
+  const flashEl=h("div",{style:{display:"none",marginBottom:10}});root.appendChild(flashEl);
+
+  /* ── ツールバー ── */
+  const tbEl=h("div",{style:{background:"#fff",border:"1px solid #E2E8F0",borderRadius:10,padding:"10px 14px",marginBottom:14,display:"flex",gap:10,alignItems:"center",flexWrap:"wrap",boxShadow:"0 1px 3px rgba(0,0,0,.04)"}});
+  root.appendChild(tbEl);
+
+  /* ── コンテンツエリア ── */
+  const contentEl=h("div");root.appendChild(contentEl);
+
+  /* ================================================================
+     モーダル: 新規商談
+  ================================================================ */
+  function openNewDealModal(){
+    if(!customers.length){alert("先に顧客を登録してください");return}
+    let nd={title:"",amount:"",stage:settings.salesStages[0]?.id||"",customer_id:customers[0].id,probability:20,pipeline:"新規開拓",deal_date:"",memo:""};
+    const{el:ov,close}=Modal("新規商談を追加",(mb)=>{
+      // タイトル
+      const{wrap:tw,el:tEl}=mkInput("商談タイトル",true,{value:"",placeholder:"例: エンタープライズプラン導入"});tEl.addEventListener("input",e=>nd.title=e.target.value);mb.appendChild(tw);
+      // 顧客
+      const{wrap:cw}=mkSelect("顧客",true,customers.map(c=>({value:c.id,label:c.name+"（"+c.company+"）"})),nd.customer_id,e=>nd.customer_id=e.target.value);mb.appendChild(cw);
+      // 金額
+      const{wrap:aw,el:aEl}=mkInput("金額（円）",false,{type:"number",value:"",placeholder:"0"});aEl.addEventListener("input",e=>nd.amount=e.target.value);mb.appendChild(aw);
+      // フェーズ
+      const{wrap:sw}=mkSelect("初期フェーズ",false,settings.salesStages.map(s=>({value:s.id,label:s.label})),nd.stage,e=>nd.stage=e.target.value);mb.appendChild(sw);
+      // 2カラム行: パイプライン種別 + 日にち
+      const row2=h("div",{style:{display:"grid",gridTemplateColumns:"1fr 1fr",gap:"0 16px"}});
+      const{wrap:pw}=mkSelect("パイプライン",false,[{value:"新規開拓",label:"🆕 新規開拓"},{value:"既存拡大",label:"📈 既存拡大"},{value:"更新",label:"🔄 更新"},{value:"紹介",label:"🤝 紹介"},{value:"その他",label:"📋 その他"}],nd.pipeline,e=>nd.pipeline=e.target.value);row2.appendChild(pw);
+      const{wrap:dw,el:dEl}=mkInput("日にち（予定日）",false,{type:"date",value:nd.deal_date});dEl.addEventListener("input",e=>nd.deal_date=e.target.value);row2.appendChild(dw);
+      mb.appendChild(row2);
+      // 確度
+      const probLabel=h("label",{style:{display:"flex",justifyContent:"space-between",fontSize:12,fontWeight:600,color:"#475569",marginBottom:5}},["成約確度",h("span",{style:{color:"#6366F1",fontWeight:700}},[nd.probability+"%"])]);
+      const probRange=h("input",{type:"range",min:0,max:100,value:nd.probability,step:5,style:{width:"100%",boxSizing:"border-box",marginBottom:4}});
+      probRange.addEventListener("input",e=>{nd.probability=+e.target.value;probLabel.lastChild.textContent=nd.probability+"%"});
+      mb.appendChild(probLabel);mb.appendChild(probRange);
+      // メモ
+      const memoWrap=h("div",{style:{marginTop:10,marginBottom:4}});
+      memoWrap.appendChild(h("label",{style:{display:"block",fontSize:12,fontWeight:600,color:"#475569",marginBottom:5}},["メモ"]));
+      const memoTa=h("textarea",{style:{width:"100%",minHeight:64,boxSizing:"border-box",fontSize:12},placeholder:"商談メモ・次回アクションなど…"});
+      memoTa.addEventListener("input",e=>nd.memo=e.target.value);memoWrap.appendChild(memoTa);mb.appendChild(memoWrap);
+    },async(mf,close2)=>{
+      mf.appendChild(Btn("キャンセル","ghost","md",close2));
+      mf.appendChild(Btn("💾 保存","primary","md",async()=>{
+        if(!nd.title){alert("タイトルを入力してください");return}
+        try{const d=await dealsApi.create({...nd,amount:parseInt(nd.amount)||0});deals=[d,...deals];close2();renderContent();renderKPI()}
+        catch(e){alert("エラー: "+e.message)}
+      }));
+    });
+    $("app").appendChild(ov);
+  }
+
+  /* ================================================================
+     モーダル: 編集
+  ================================================================ */
+  function openEditDealModal(deal,onDone){
+    const ed={title:deal.title,amount:deal.amount,stage:deal.stage,probability:deal.probability,customer_id:deal.customer_id,pipeline:deal.pipeline||"新規開拓",deal_date:deal.deal_date||"",memo:deal.memo||""};
+    const{el:ov,close}=Modal("商談を編集・更新",(mb)=>{
+      // タイトル
+      const{wrap:tw,el:tEl}=mkInput("商談タイトル",true,{value:ed.title});tEl.addEventListener("input",e=>ed.title=e.target.value);mb.appendChild(tw);
+      // 顧客
+      const{wrap:cw}=mkSelect("顧客",true,customers.map(c=>({value:c.id,label:c.name+"（"+c.company+"）"})),ed.customer_id,e=>ed.customer_id=e.target.value);mb.appendChild(cw);
+      // 金額
+      const{wrap:aw,el:aEl}=mkInput("金額（円）",false,{type:"number",value:String(ed.amount)});aEl.addEventListener("input",e=>ed.amount=e.target.value);mb.appendChild(aw);
+      // フェーズ
+      const{wrap:sw}=mkSelect("フェーズ",false,settings.salesStages.map(s=>({value:s.id,label:s.label})),ed.stage,e=>ed.stage=e.target.value);mb.appendChild(sw);
+      // 2カラム行: パイプライン + 日にち
+      const row2=h("div",{style:{display:"grid",gridTemplateColumns:"1fr 1fr",gap:"0 16px"}});
+      const{wrap:pw}=mkSelect("パイプライン",false,[{value:"新規開拓",label:"🆕 新規開拓"},{value:"既存拡大",label:"📈 既存拡大"},{value:"更新",label:"🔄 更新"},{value:"紹介",label:"🤝 紹介"},{value:"その他",label:"📋 その他"}],ed.pipeline,e=>ed.pipeline=e.target.value);row2.appendChild(pw);
+      const{wrap:dw,el:dEl}=mkInput("日にち（予定日）",false,{type:"date",value:ed.deal_date});dEl.addEventListener("input",e=>ed.deal_date=e.target.value);row2.appendChild(dw);
+      mb.appendChild(row2);
+      // 確度
+      const probLabel=h("label",{style:{display:"flex",justifyContent:"space-between",fontSize:12,fontWeight:600,color:"#475569",marginBottom:5}},["成約確度",h("span",{style:{color:"#6366F1",fontWeight:700}},[ed.probability+"%"])]);
+      const probRange=h("input",{type:"range",min:0,max:100,value:ed.probability,step:5,style:{width:"100%",boxSizing:"border-box",marginBottom:4}});
+      probRange.addEventListener("input",e=>{ed.probability=+e.target.value;probLabel.lastChild.textContent=ed.probability+"%"});
+      mb.appendChild(probLabel);mb.appendChild(probRange);
+      // メモ
+      const memoWrap=h("div",{style:{marginTop:10,marginBottom:4}});
+      memoWrap.appendChild(h("label",{style:{display:"block",fontSize:12,fontWeight:600,color:"#475569",marginBottom:5}},["メモ"]));
+      const memoTa=h("textarea",{style:{width:"100%",minHeight:64,boxSizing:"border-box",fontSize:12},placeholder:"商談メモ・次回アクションなど…"});
+      memoTa.value=ed.memo;memoTa.addEventListener("input",e=>ed.memo=e.target.value);memoWrap.appendChild(memoTa);mb.appendChild(memoWrap);
+    },async(mf,close2)=>{
+      mf.appendChild(Btn("キャンセル","ghost","md",close2));
+      mf.appendChild(Btn("💾 更新保存","primary","md",async()=>{
+        if(!ed.title){alert("タイトルを入力してください");return}
+        try{
+          const i=store.deals.findIndex(d=>d.id===deal.id);
+          if(i>=0){store.deals[i]={...store.deals[i],...ed,amount:parseInt(ed.amount)||0,updated_at:nowStr()}}
+          if(ed.stage!==deal.stage)await dealsApi.updateStage(deal.id,ed.stage);
+          close2();if(onDone)onDone();
+        }catch(e){alert("エラー: "+e.message)}
+      }));
+    });
+    $("app").appendChild(ov);
+  }
+
+  /* ================================================================
+     データロード
+  ================================================================ */
+  async function load(){
+    loading=true;errMsg=null;renderContent();
+    try{[deals,customers]=await Promise.all([dealsApi.list(),customersApi.list()])}
+    catch(e){errMsg=e.message}
+    loading=false;renderKPI();renderToolbar();renderContent();
+  }
+
+  /* ================================================================
+     KPI
+  ================================================================ */
+  function renderKPI(){
+    kpiEl.innerHTML="";
+    const lostIds=["support_ended","lost","first_appt_lost"];
+    const active=deals.filter(d=>!lostIds.includes(d.stage));
+    const won=deals.filter(d=>["supporting","supporting_billed"].includes(d.stage));
+    const closed=deals.filter(d=>[...["supporting","supporting_billed"],...lostIds].includes(d.stage));
+    const pipeline=active.filter(d=>!["supporting","supporting_billed"].includes(d.stage));
+    const pipelineAmt=pipeline.reduce((s,d)=>s+d.amount,0);
+    [
+      {label:"総額",value:fmt.money(pipelineAmt),sub:pipeline.length+"件",c:"#6366F1",bg:"#EEF2FF"},
+      {label:"支援中合計",value:fmt.money(won.reduce((s,d)=>s+d.amount,0)),sub:won.length+"件",c:"#10B981",bg:"#ECFDF5"},
+      {label:"進行中商談",value:active.length+"件",sub:"アクティブ",c:"#3B82F6",bg:"#EFF6FF"},
+      {label:"受注率",value:Math.round(won.length/(closed.length||1)*100)+"%",sub:won.length+"/"+closed.length+"件",c:"#F59E0B",bg:"#FFFBEB"},
+      {label:"総商談数",value:deals.length+"件",sub:"全フェーズ合計",c:"#64748B",bg:"#F8FAFC"},
+    ].forEach(s=>{
+      const c=h("div",{style:{background:s.bg,borderRadius:10,padding:"14px 16px",border:"1px solid "+s.c+"22",boxShadow:"0 1px 3px rgba(0,0,0,.04)",cursor:"default"}});
+      c.appendChild(h("div",{style:{fontSize:10,color:s.c,fontWeight:700,letterSpacing:".06em",textTransform:"uppercase",marginBottom:5}},[s.label]));
+      c.appendChild(h("div",{style:{fontSize:20,fontWeight:800,color:s.c,marginBottom:2}},[s.value]));
+      c.appendChild(h("div",{style:{fontSize:11,color:s.c+"99"}},[s.sub]));
+      kpiEl.appendChild(c);
+    });
+  }
+
+  /* ================================================================
+     ツールバー
+  ================================================================ */
+  function renderToolbar(){
+    tbEl.innerHTML="";
+
+    // 検索
+    const srch=h("input",{placeholder:"🔍 商談名・顧客名で検索…",value:searchQ,style:{flex:1,minWidth:160,boxSizing:"border-box"}});
+    srch.addEventListener("input",e=>{searchQ=e.target.value;renderContent()});
+    tbEl.appendChild(srch);
+
+    // フェーズ絞り込み
+    const fSel=h("select",{style:{padding:"9px 32px 9px 12px",border:"1.5px solid #E2E8F0",borderRadius:8,background:"#fff",color:"#1E293B",fontFamily:"inherit",fontSize:13,minWidth:150}});
+    h("option",{value:"all"},["すべてのフェーズ"]);
+    [h("option",{value:"all"},["すべてのフェーズ"]),...settings.salesStages.map(s=>{const o=h("option",{value:s.id},[s.label]);if(s.id===filterStage)o.selected=true;return o})].forEach(o=>fSel.appendChild(o));
+    fSel.value=filterStage;
+    fSel.addEventListener("change",e=>{filterStage=e.target.value;renderContent()});
+    tbEl.appendChild(fSel);
+
+    // 表示切替
+    const viewWrap=h("div",{style:{display:"flex",border:"1.5px solid #E2E8F0",borderRadius:8,overflow:"hidden"}});
+    [{id:"kanban",label:"📋 カンバン"},{id:"list",label:"📄 リスト"},{id:"summary",label:"📊 サマリー"}].forEach(v=>{
+      const b=h("button",{style:{padding:"8px 13px",fontSize:12,fontWeight:viewMode===v.id?700:500,background:viewMode===v.id?"#6366F1":"#fff",color:viewMode===v.id?"#fff":"#64748B",border:"none",cursor:"pointer",fontFamily:"inherit",borderRight:"1px solid #E2E8F0",transition:"all .12s"}},[v.label]);
+      b.addEventListener("click",()=>{viewMode=v.id;renderToolbar();renderContent()});
+      viewWrap.appendChild(b);
+    });
+    tbEl.appendChild(viewWrap);
+
+    tbEl.appendChild(Btn("➕ 商談追加","primary","md",()=>openNewDealModal()));
+  }
+
+  /* ================================================================
+     フィルタ済み商談リスト
+  ================================================================ */
+  function filteredDeals(){
+    return deals.filter(d=>{
+      const ci=d.customers||customers.find(c=>c.id===d.customer_id);
+      const mq=!searchQ||(d.title||"").includes(searchQ)||(ci&&ci.name.includes(searchQ))||(ci&&(ci.company||"").includes(searchQ));
+      const ms=filterStage==="all"||d.stage===filterStage;
+      return mq&&ms;
+    });
+  }
+
+  function showFlash(msg){flashEl.style.cssText="display:block;background:#F0FDF4;border:1px solid #86EFAC;border-radius:8px;padding:9px 14px;font-size:12px;color:#166534;font-weight:600;margin-bottom:10px";flashEl.textContent="✓ "+msg;setTimeout(()=>flashEl.style.display="none",3000)}
+
+  /* ================================================================
+     カンバン表示
+  ================================================================ */
+  function renderKanban(){
+    const fd=filteredDeals();
+    // 表示するフェーズを絞る（該当フェーズのみ or 全体）
+    const visibleStages=filterStage==="all"?settings.salesStages:settings.salesStages.filter(s=>s.id===filterStage);
+
+    const wrap=h("div",{style:{overflowX:"auto",paddingBottom:12}});
+    const grid=h("div",{style:{display:"flex",gap:10,minWidth:visibleStages.length*200+"px"}});
+
+    visibleStages.forEach(stage=>{
+      const sDeals=fd.filter(d=>d.stage===stage.id);
+
+      const col=h("div",{style:{flex:"0 0 200px",borderRadius:12,overflow:"hidden",border:"1px solid "+stage.color+"33",boxShadow:"0 1px 4px rgba(0,0,0,.05)"}});
+
+      // カラムヘッダー
+      const colHead=h("div",{style:{background:stage.color,padding:"10px 12px",display:"flex",justifyContent:"space-between",alignItems:"center"}});
+      colHead.appendChild(h("div",{style:{fontSize:12,fontWeight:700,color:"#fff",lineHeight:1.3,flex:1,marginRight:6}},[stage.label]));
+      const countBadge=h("span",{style:{background:"rgba(255,255,255,.25)",color:"#fff",fontSize:11,fontWeight:700,padding:"2px 7px",borderRadius:99,whiteSpace:"nowrap"}},[sDeals.length+"件"]);
+      colHead.appendChild(countBadge);
+      col.appendChild(colHead);
+
+      // 金額帯
+      const amtBar=h("div",{style:{background:stage.color+"18",padding:"5px 12px",borderBottom:"1px solid "+stage.color+"22"}});
+      amtBar.appendChild(h("span",{style:{fontSize:11,color:stage.color,fontWeight:600}},["合計: "+fmt.money(sDeals.reduce((s,d)=>s+d.amount,0))]));
+      col.appendChild(amtBar);
+
+      // ドロップゾーン
+      const dropZone=h("div",{style:{padding:8,minHeight:180,background:"#FAFAFA",transition:"background .15s"}});
+      dropZone.addEventListener("dragover",e=>{e.preventDefault();dropZone.style.background=stage.color+"12"});
+      dropZone.addEventListener("dragleave",()=>dropZone.style.background="#FAFAFA");
+      dropZone.addEventListener("drop",async e=>{
+        e.preventDefault();dropZone.style.background="#FAFAFA";
+        if(!dragId)return;
+        const deal=deals.find(d=>d.id===dragId);
+        if(!deal||deal.stage===stage.id){dragId=null;return}
+        const prev=deal.stage;
+        deals=deals.map(d=>d.id===dragId?{...d,stage:stage.id}:d);dragId=null;
+        renderContent();renderKPI();
+        try{await dealsApi.updateStage(deal.id,stage.id);showFlash("「"+deal.title+"」→「"+stage.label+"」に移動");deals=await dealsApi.list();renderContent();renderKPI()}
+        catch(e2){deals=deals.map(d=>d.id===deal.id?{...d,stage:prev}:d);renderContent()}
+      });
+
+      if(sDeals.length===0){
+        dropZone.appendChild(h("div",{style:{textAlign:"center",padding:"24px 8px",color:"#CBD5E1",fontSize:12}},["商談なし"]));
+      }
+      sDeals.forEach(deal=>{
+        const ci=deal.customers||customers.find(c=>c.id===deal.customer_id);
+        const dc=h("div",{draggable:"true",style:{background:"#fff",borderRadius:8,padding:"10px 11px",marginBottom:7,border:"1px solid #E2E8F0",cursor:"grab",userSelect:"none",transition:"all .13s",boxShadow:"0 1px 3px rgba(0,0,0,.05)"}});
+        dc.addEventListener("dragstart",()=>{dragId=deal.id;dc.style.opacity=".45";dc.style.transform="rotate(1.5deg)";dc.style.boxShadow="0 6px 16px rgba(99,102,241,.2)"});
+        dc.addEventListener("dragend",()=>{dragId=null;dc.style.opacity="1";dc.style.transform="";dc.style.boxShadow=""});
+
+        // タイトル
+        dc.appendChild(h("div",{style:{fontSize:12,fontWeight:700,color:"#1E293B",marginBottom:4,lineHeight:1.35}},[deal.title]));
+        // 顧客
+        if(ci)dc.appendChild(h("div",{style:{fontSize:11,color:"#64748B",marginBottom:6,display:"flex",alignItems:"center",gap:3}},["👤 "+ci.name+(ci.company?" · "+ci.company:"")]));
+        // パイプライン & 日にち
+        const metaRow=h("div",{style:{display:"flex",gap:5,flexWrap:"wrap",marginBottom:6}});
+        if(deal.pipeline)metaRow.appendChild(h("span",{style:{fontSize:10,fontWeight:600,padding:"2px 7px",borderRadius:99,background:"#EEF2FF",color:"#4F46E5",border:"1px solid #C7D2FE"}},[deal.pipeline]));
+        if(deal.deal_date)metaRow.appendChild(h("span",{style:{fontSize:10,fontWeight:600,padding:"2px 7px",borderRadius:99,background:"#FFF7ED",color:"#EA580C",border:"1px solid #FED7AA"}},["📅 "+deal.deal_date]));
+        if(metaRow.children.length)dc.appendChild(metaRow);
+        // 金額 & 確度
+        const row1=h("div",{style:{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:5}});
+        row1.appendChild(h("span",{style:{fontSize:13,fontWeight:800,color:"#059669"}},[fmt.money(deal.amount)]));
+        const probColor=deal.probability>=70?"#10B981":deal.probability>=40?"#F59E0B":"#EF4444";
+        row1.appendChild(h("span",{style:{fontSize:11,fontWeight:700,color:probColor,background:probColor+"15",padding:"2px 7px",borderRadius:99}},[deal.probability+"%"]));
+        dc.appendChild(row1);
+        // 確度バー
+        const probBarWrap=h("div",{style:{height:3,background:"#F1F5F9",borderRadius:99,overflow:"hidden",marginBottom:deal.memo?6:8}});
+        probBarWrap.appendChild(h("div",{style:{width:deal.probability+"%",height:"100%",background:probColor,borderRadius:99,transition:"width .3s"}}));
+        dc.appendChild(probBarWrap);
+        // メモ
+        if(deal.memo){
+          const memoEl=h("div",{style:{fontSize:10,color:"#64748B",background:"#FFFBEB",borderRadius:5,padding:"4px 7px",marginBottom:7,lineHeight:1.5,borderLeft:"2px solid #F59E0B",maxHeight:36,overflow:"hidden"}},[ deal.memo.length>40?deal.memo.slice(0,40)+"…":deal.memo]);
+          dc.appendChild(memoEl);
+        }
+        // 編集ボタン
+        const editBtn=h("button",{style:{width:"100%",padding:"5px",borderRadius:6,background:"#F8FAFC",border:"1px solid #E2E8F0",fontSize:11,color:"#64748B",cursor:"pointer",fontFamily:"inherit",fontWeight:500,transition:"all .12s"}},["✏️ 編集・更新"]);
+        editBtn.addEventListener("mouseenter",()=>{editBtn.style.background="#EEF2FF";editBtn.style.color="#6366F1";editBtn.style.borderColor="#C7D2FE"});
+        editBtn.addEventListener("mouseleave",()=>{editBtn.style.background="#F8FAFC";editBtn.style.color="#64748B";editBtn.style.borderColor="#E2E8F0"});
+        editBtn.addEventListener("click",e=>{e.stopPropagation();openEditDealModal(deal,()=>{dealsApi.list().then(d=>{deals=d;renderContent();renderKPI()})})});
+        dc.appendChild(editBtn);
+        dropZone.appendChild(dc);
+      });
+      col.appendChild(dropZone);
+      grid.appendChild(col);
+    });
+    wrap.appendChild(grid);
+    return wrap;
+  }
+
+  /* ================================================================
+     リスト表示
+  ================================================================ */
+  function renderList(){
+    const fd=filteredDeals();
+    const wrap=h("div",{style:{border:"1px solid #E2E8F0",borderRadius:12,overflow:"hidden",boxShadow:"0 1px 3px rgba(0,0,0,.04)"}});
+    const tbl=h("table",{style:{width:"100%",borderCollapse:"collapse",fontSize:13,background:"#fff"}});
+    const thead=h("thead");
+    const hr=h("tr",{style:{background:"#F8FAFC"}});
+    ["商談名","顧客","フェーズ","金額","確度","操作"].forEach(t=>{
+      hr.appendChild(h("th",{style:{padding:"11px 14px",textAlign:"left",fontWeight:700,color:"#64748B",borderBottom:"1px solid #E2E8F0",fontSize:11,letterSpacing:".04em",whiteSpace:"nowrap"}},[t]));
+    });
+    thead.appendChild(hr);tbl.appendChild(thead);
+    const tbody=h("tbody");
+    if(!fd.length){
+      const tr=h("tr");tr.appendChild(h("td",{colspan:6,style:{padding:40,textAlign:"center",color:"#94A3B8",fontSize:13}},["該当する商談が見つかりません"]));tbody.appendChild(tr);
+    }
+    fd.forEach((deal,i)=>{
+      const ci=deal.customers||customers.find(c=>c.id===deal.customer_id);
+      const sc=stageColor(deal.stage),sl=stageLabel(deal.stage);
+      const tr=h("tr",{style:{background:i%2?"#F8FAFC":"#fff",borderBottom:"1px solid #F1F5F9",transition:"background .1s"}});
+      tr.addEventListener("mouseenter",()=>tr.style.background="#EEF2FF");
+      tr.addEventListener("mouseleave",()=>tr.style.background=i%2?"#F8FAFC":"#fff");
+      // 商談名
+      const nTd=h("td",{style:{padding:"11px 14px"}});
+      nTd.appendChild(h("div",{style:{fontWeight:700,color:"#1E293B",fontSize:13,marginBottom:4}},[deal.title]));
+      const nMeta=h("div",{style:{display:"flex",gap:4,flexWrap:"wrap",marginBottom:deal.memo?3:0}});
+      if(deal.pipeline)nMeta.appendChild(h("span",{style:{fontSize:10,fontWeight:600,padding:"1px 6px",borderRadius:99,background:"#EEF2FF",color:"#4F46E5"}},[deal.pipeline]));
+      if(deal.deal_date)nMeta.appendChild(h("span",{style:{fontSize:10,fontWeight:600,padding:"1px 6px",borderRadius:99,background:"#FFF7ED",color:"#EA580C"}},["📅 "+deal.deal_date]));
+      if(nMeta.children.length)nTd.appendChild(nMeta);
+      if(deal.memo)nTd.appendChild(h("div",{style:{fontSize:11,color:"#94A3B8",marginTop:2,maxWidth:200,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}},[deal.memo]));
+      tr.appendChild(nTd);
+      // 顧客
+      const cTd=h("td",{style:{padding:"11px 14px"}});
+      if(ci){cTd.appendChild(h("div",{style:{fontWeight:600,color:"#374151",fontSize:12}},[ci.name]));cTd.appendChild(h("div",{style:{color:"#94A3B8",fontSize:11}},[ci.company||""]))}
+      tr.appendChild(cTd);
+      // フェーズ
+      tr.appendChild(h("td",{style:{padding:"11px 14px"}},[ badge(sl,sc)]));
+      // 金額
+      tr.appendChild(h("td",{style:{padding:"11px 14px",fontWeight:700,color:"#059669",fontSize:13,whiteSpace:"nowrap"}},[fmt.money(deal.amount)]));
+      // 確度
+      const probColor=deal.probability>=70?"#10B981":deal.probability>=40?"#F59E0B":"#EF4444";
+      const probTd=h("td",{style:{padding:"11px 14px"}});
+      probTd.appendChild(h("div",{style:{display:"flex",alignItems:"center",gap:6}},[ h("div",{style:{width:50,height:5,background:"#F1F5F9",borderRadius:99,overflow:"hidden"}},[h("div",{style:{width:deal.probability+"%",height:"100%",background:probColor,borderRadius:99}})]),h("span",{style:{fontSize:12,fontWeight:700,color:probColor}},[deal.probability+"%"])]));
+      tr.appendChild(probTd);
+      // 操作
+      const aTd=h("td",{style:{padding:"11px 14px"}});
+      const btnWrap=h("div",{style:{display:"flex",gap:6}});
+      // フェーズ変更セレクト
+      const stageSel=h("select",{style:{padding:"5px 8px",fontSize:11,border:"1.5px solid #E2E8F0",borderRadius:7,background:"#fff",color:"#374151",fontFamily:"inherit",cursor:"pointer"}});
+      settings.salesStages.forEach(s=>{const o=h("option",{value:s.id},[s.label]);if(s.id===deal.stage)o.selected=true;stageSel.appendChild(o)});
+      stageSel.addEventListener("change",async e=>{
+        const ns=e.target.value;if(ns===deal.stage)return;
+        const prev=deal.stage;deals=deals.map(d=>d.id===deal.id?{...d,stage:ns}:d);renderContent();renderKPI();
+        try{await dealsApi.updateStage(deal.id,ns);showFlash("「"+deal.title+"」フェーズを更新");deals=await dealsApi.list();renderContent();renderKPI()}
+        catch(err){deals=deals.map(d=>d.id===deal.id?{...d,stage:prev}:d);renderContent()}
+      });
+      btnWrap.appendChild(stageSel);
+      btnWrap.appendChild(Btn("✏️","ghost","sm",()=>openEditDealModal(deal,()=>{dealsApi.list().then(d=>{deals=d;renderContent();renderKPI()})})));
+      aTd.appendChild(btnWrap);tr.appendChild(aTd);
+      tbody.appendChild(tr);
+    });
+    tbl.appendChild(tbody);wrap.appendChild(tbl);
+    return wrap;
+  }
+
+  /* ================================================================
+     サマリー表示
+  ================================================================ */
+  function renderSummary(){
+    const wrap=h("div",{style:{display:"grid",gridTemplateColumns:"repeat(2,1fr)",gap:16}});
+
+    // フェーズ別集計テーブル
+    const tableCard=h("div",{style:{background:"#fff",borderRadius:12,border:"1px solid #E2E8F0",overflow:"hidden",boxShadow:"0 1px 3px rgba(0,0,0,.04)"}});
+    tableCard.appendChild(h("div",{style:{padding:"13px 16px",fontWeight:700,fontSize:14,color:"#1E293B",borderBottom:"1px solid #F1F5F9"}},["フェーズ別集計"]));
+    const tbl=h("table",{style:{width:"100%",borderCollapse:"collapse",fontSize:12}});
+    const thead=h("thead");
+    const hr=h("tr",{style:{background:"#F8FAFC"}});
+    ["フェーズ","件数","合計金額","平均確度","直近日程"].forEach(t=>hr.appendChild(h("th",{style:{padding:"9px 14px",textAlign:"left",fontWeight:700,color:"#64748B",borderBottom:"1px solid #E2E8F0",fontSize:11}},[t])));
+    thead.appendChild(hr);tbl.appendChild(thead);
+    const tbody=h("tbody");
+    settings.salesStages.forEach((stage,i)=>{
+      const sDeals=deals.filter(d=>d.stage===stage.id);
+      if(!sDeals.length)return;
+      const total=sDeals.reduce((s,d)=>s+d.amount,0);
+      const avgProb=Math.round(sDeals.reduce((s,d)=>s+d.probability,0)/sDeals.length);
+      const tr=h("tr",{style:{background:i%2?"#F8FAFC":"#fff",borderBottom:"1px solid #F1F5F9"}});
+      const nameTd=h("td",{style:{padding:"9px 14px"}});
+      nameTd.appendChild(h("div",{style:{display:"flex",alignItems:"center",gap:7}},[ h("span",{style:{width:8,height:8,borderRadius:"50%",background:stage.color,display:"inline-block",flexShrink:0}}),h("span",{style:{color:stage.color,fontWeight:700,fontSize:12}},[stage.label])]));
+      tr.appendChild(nameTd);
+      tr.appendChild(h("td",{style:{padding:"9px 14px",fontWeight:700,color:"#1E293B"}},[sDeals.length+"件"]));
+      tr.appendChild(h("td",{style:{padding:"9px 14px",fontWeight:700,color:"#059669"}},[fmt.money(total)]));
+      const probColor=avgProb>=70?"#10B981":avgProb>=40?"#F59E0B":"#EF4444";
+      tr.appendChild(h("td",{style:{padding:"9px 14px",fontWeight:700,color:probColor}},[avgProb+"%"]));
+      // 直近日程
+      const datesInStage=sDeals.filter(d=>d.deal_date).map(d=>d.deal_date).sort();
+      tr.appendChild(h("td",{style:{padding:"9px 14px",fontSize:11,color:"#64748B"}},[datesInStage.length?datesInStage[0]:"-"]));
+      tbody.appendChild(tr);
+    });
+    tbl.appendChild(tbody);tableCard.appendChild(tbl);
+    wrap.appendChild(tableCard);
+
+    // 担当顧客別サマリー
+    const custCard=h("div",{style:{background:"#fff",borderRadius:12,border:"1px solid #E2E8F0",overflow:"hidden",boxShadow:"0 1px 3px rgba(0,0,0,.04)"}});
+    custCard.appendChild(h("div",{style:{padding:"13px 16px",fontWeight:700,fontSize:14,color:"#1E293B",borderBottom:"1px solid #F1F5F9"}},["顧客別商談一覧"]));
+    const custBody=h("div",{style:{padding:"8px"}});
+    const custMap=new Map();
+    deals.forEach(d=>{
+      const ci=d.customers||customers.find(c=>c.id===d.customer_id);
+      const key=d.customer_id;
+      if(!custMap.has(key))custMap.set(key,{ci,deals:[]});
+      custMap.get(key).deals.push(d);
+    });
+    custMap.forEach(({ci,deals:cDeals})=>{
+      const activeDeals=cDeals.filter(d=>!["support_ended","lost","first_appt_lost"].includes(d.stage));
+      const row=h("div",{style:{padding:"9px 10px",borderRadius:8,marginBottom:5,border:"1px solid #F1F5F9",background:"#FAFAFA"}});
+      row.appendChild(h("div",{style:{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:4}},[ h("div",{style:{fontWeight:700,fontSize:12,color:"#1E293B"}},[ci?ci.name:"不明"]),h("span",{style:{fontSize:11,color:"#64748B"}},[ci&&ci.company?ci.company:""])]));
+      const dealTags=h("div",{style:{display:"flex",gap:4,flexWrap:"wrap"}});
+      cDeals.forEach(d=>{
+        const sc=stageColor(d.stage);
+        const tagLabel=h("span",{style:{fontSize:10,fontWeight:600,padding:"2px 7px",borderRadius:99,background:sc+"18",color:sc,border:"1px solid "+sc+"33",cursor:"default",title:d.memo||""}},[d.title.length>12?d.title.slice(0,12)+"…":d.title]);
+        if(d.deal_date)tagLabel.title=(d.memo?d.memo+" ":"")+"📅"+d.deal_date;
+        dealTags.appendChild(tagLabel);
+      });
+      row.appendChild(dealTags);
+      custBody.appendChild(row);
+    });
+    if(custMap.size===0)custBody.appendChild(h("div",{style:{color:"#94A3B8",fontSize:12,textAlign:"center",padding:24}},["商談なし"]));
+    custCard.appendChild(custBody);
+    wrap.appendChild(custCard);
+    return wrap;
+  }
+
+  /* ================================================================
+     コンテンツ描画
+  ================================================================ */
+  function renderContent(){
+    contentEl.innerHTML="";
+    if(errMsg){contentEl.appendChild(errBanner(errMsg,load));return}
+    if(loading){contentEl.appendChild(spinner());return}
+    if(viewMode==="kanban")contentEl.appendChild(renderKanban());
+    else if(viewMode==="list")contentEl.appendChild(renderList());
+    else contentEl.appendChild(renderSummary());
+  }
+
+  renderKPI();renderToolbar();load();
+  return root;
+}
+
+
+/* ================================================================
+   メインレンダラ
+================================================================ */
+const NAV=[{id:"crm",label:"顧客管理",icon:"👥"},{id:"sales",label:"営業状況",icon:"📈"},{id:"settings",label:"設定",icon:"⚙️"}];
+
+function render(){
+  const app=$("app");app.innerHTML="";app.style.cssText="position:relative;min-height:100vh";
+  const header=h("div",{style:{background:"#fff",borderBottom:"1px solid #E2E8F0",padding:"0 22px",display:"flex",alignItems:"center",position:"sticky",top:0,zIndex:50,boxShadow:"0 1px 4px rgba(0,0,0,.05)"}});
+  const logo=h("div",{style:{display:"flex",alignItems:"center",gap:9,marginRight:28,padding:"13px 0"}});
+  logo.appendChild(h("div",{style:{width:28,height:28,borderRadius:7,background:"linear-gradient(135deg,#6366F1,#8B5CF6)",display:"flex",alignItems:"center",justifyContent:"center",fontSize:13,boxShadow:"0 2px 8px rgba(99,102,241,.35)"}},["\uD83D\uDD17"]));
+  logo.appendChild(h("span",{style:{fontWeight:800,fontSize:15,color:"#1E293B",letterSpacing:"-.4px"}},["NexusCRM"]));
+  header.appendChild(logo);
+  const nav=h("nav",{style:{display:"flex"}});
+  NAV.forEach(n=>{
+    const a=_s.tab===n.id;
+    const b=h("button",{style:{padding:"14px 16px",background:"none",border:"none",cursor:"pointer",fontFamily:"inherit",fontSize:13,fontWeight:a?700:500,color:a?"#6366F1":"#64748B",borderBottom:"2px solid "+(a?"#6366F1":"transparent"),transition:"all .15s",display:"flex",alignItems:"center",gap:5}},[ n.icon+" "+n.label]);
+    b.addEventListener("click",()=>setState({tab:n.id,selCust:null,newCust:false,editCust:null}));nav.appendChild(b);
+  });
+  header.appendChild(nav);
+  header.appendChild(h("div",{style:{marginLeft:"auto",width:32,height:32,borderRadius:"50%",background:"linear-gradient(135deg,#EEF2FF,#E0E7FF)",display:"flex",alignItems:"center",justifyContent:"center",fontSize:12,fontWeight:800,color:"#6366F1",border:"2px solid #C7D2FE"}},["山"]));
+  app.appendChild(header);
+
+  let title="",sub="";
+  if(_s.tab==="crm"){
+    if(_s.newCust){title="新規顧客登録";sub="*印は必須項目です"}
+    else if(_s.editCust){const c=store.customers.find(x=>x.id===_s.editCust);title=(c?c.name+"の編集":"顧客編集");sub="保存ボタンを押して確定"}
+    else if(_s.selCust){const c=store.customers.find(x=>x.id===_s.selCust);title=c?c.name:"顧客詳細";sub=""}
+    else{title="顧客管理";sub="顧客一覧・検索・追加・編集"}
+  }else if(_s.tab==="sales"){title="営業状況";sub="案件をドラッグ&ドロップでフェーズ管理"}
+  else{title="設定";sub="項目・フェーズ・活動タイプをカスタマイズ"}
+  const ph=h("div",{style:{background:"#fff",borderBottom:"1px solid #E2E8F0",padding:"13px 22px"}});
+  ph.appendChild(h("h1",{style:{margin:0,fontSize:16,fontWeight:800,color:"#1E293B"}},[title]));
+  if(sub)ph.appendChild(h("p",{style:{margin:"3px 0 0",fontSize:12,color:"#94A3B8"}},[sub]));
+  app.appendChild(ph);
+
+  const main=h("div",{style:{padding:"18px 22px",maxWidth:1400,margin:"0 auto"}});
+  if(_s.tab==="crm"){
+    if(_s.newCust)main.appendChild(CustomerForm(null,async(form)=>{await customersApi.create(form);setState({newCust:false})},()=>setState({newCust:false}),false));
+    else if(_s.editCust){const cust=store.customers.find(c=>c.id===_s.editCust);main.appendChild(CustomerForm(cust,async(form,isAuto)=>{await customersApi.update(_s.editCust,form);if(!isAuto)setState({editCust:null})},()=>setState({editCust:null}),true))}
+    else if(_s.selCust)main.appendChild(CustomerDetail(_s.selCust));
+    else main.appendChild(CustomerList());
+  }else if(_s.tab==="sales")main.appendChild(SalesPipeline());
+  else main.appendChild(SettingsPage());
+  app.appendChild(main);
+}
+
+render();
+})();
+</script>
+</body>
+</html>
