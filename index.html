@@ -746,7 +746,26 @@
 .analysis-kpi-merge .analysis-bottom{
   margin-top:14px;
 }
-</style></head>
+</style>
+<style>
+.target-plan-wrap{padding:24px 26px}
+.target-scenario{border:1px solid #e4e7ec;border-radius:18px;overflow:hidden;background:#fff;margin-top:16px}
+.target-scenario:first-child{margin-top:0}
+.target-scenario-head{display:flex;align-items:center;justify-content:space-between;gap:14px;padding:16px 18px;background:#f8fbff;border-bottom:1px solid #e4e7ec}
+.target-scenario-head h3{margin:0;font-size:18px;color:#173f7a}
+.target-scenario-head .badge{padding:5px 10px;border-radius:999px;background:#eef4ff;color:#174ea6;font-size:11px;font-weight:900}
+.target-table{width:100%;border-collapse:collapse;table-layout:fixed}
+.target-table th,.target-table td{padding:13px 12px;border-bottom:1px solid #e9edf2;text-align:center;font-size:13px}
+.target-table th{background:#fcfdff;color:#475467;font-weight:800}
+.target-table td:first-child,.target-table th:first-child{text-align:left}
+.target-table tr:last-child td{border-bottom:none}
+.target-table .strong{font-weight:900;color:#173f7a}
+.target-summary{margin-top:16px;padding:17px 18px;border-radius:15px;border:1px solid #dbe5f5;background:linear-gradient(135deg,#f8fbff,#fff);color:#526077;font-size:14px;line-height:1.75}
+.target-summary b{color:#173f7a}
+@media(max-width:820px){.target-scenario{overflow-x:auto}.target-table{min-width:760px}.target-scenario-head{align-items:flex-start;flex-direction:column}}
+</style>
+
+</head>
 <body>
 <div class="wrap">
 <header class="hero">
@@ -956,6 +975,45 @@
 </div>
 </div>
 </section>
+
+<section class="section target-plan-section">
+  <div class="head">
+    <div class="section-kicker">TARGET PLAN</div>
+    <h2>段階別 来店・売上目標</h2>
+    <p>SEO・体験モニター施策のみの場合と、LP（ランディングページ）制作・FLYING JAPAN TRIP連携まで実施する場合の2つのシナリオで、来店転換率と売上目標を設定します。</p>
+  </div>
+  <div class="target-plan-wrap">
+    <div class="target-scenario">
+      <div class="target-scenario-head"><h3>プランA｜SEO＋体験モニター施策</h3><span class="badge">集客施策中心</span></div>
+      <table class="target-table">
+        <thead><tr><th>時点</th><th>月間PV目標</th><th>目標転換率</th><th>月間目標来店組数</th><th>1組あたり平均売上</th><th>月間売上目標</th></tr></thead>
+        <tbody>
+          <tr><td class="strong">3ヶ月目</td><td>7,000 PV</td><td class="strong">1.0%</td><td class="strong">70組</td><td>5,000円</td><td class="strong">350,000円</td></tr>
+          <tr><td class="strong">6ヶ月目</td><td>9,000 PV</td><td class="strong">1.5%</td><td class="strong">135組</td><td>5,000円</td><td class="strong">675,000円</td></tr>
+          <tr><td class="strong">12ヶ月目</td><td>12,000 PV</td><td class="strong">2.0%</td><td class="strong">240組</td><td>5,000円</td><td class="strong">1,200,000円</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="target-scenario">
+      <div class="target-scenario-head"><h3>プランB｜SEO＋体験モニター＋LP制作＋FLYING JAPAN TRIP連携</h3><span class="badge">集客＋転換導線改善</span></div>
+      <table class="target-table">
+        <thead><tr><th>時点</th><th>月間PV目標</th><th>目標転換率</th><th>月間目標来店組数</th><th>1組あたり平均売上</th><th>月間売上目標</th></tr></thead>
+        <tbody>
+          <tr><td class="strong">3ヶ月目</td><td>7,000 PV</td><td class="strong">1.5%</td><td class="strong">105組</td><td>5,000円</td><td class="strong">525,000円</td></tr>
+          <tr><td class="strong">6ヶ月目</td><td>9,000 PV</td><td class="strong">2.0%</td><td class="strong">180組</td><td>5,000円</td><td class="strong">900,000円</td></tr>
+          <tr><td class="strong">12ヶ月目</td><td>12,000 PV</td><td class="strong">3.0%</td><td class="strong">360組</td><td>5,000円</td><td class="strong">1,800,000円</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="target-summary">
+      <b>目標設定の考え方：</b>
+      SEO・体験モニター施策のみの場合は、認知・流入の拡大を中心に、来店転換率を <b>1.0% → 1.5% → 2.0%</b>へ段階的に高めることを目標とします。
+      一方、LP（ランディングページ）制作とFLYING JAPAN TRIP連携まで実施する場合は、メニュー理解から予約・決済までの導線を整備し、<b>1.5% → 2.0% → 3.0%</b>の来店転換率を目標とします。
+      ※売上は1組あたり平均5,000円として試算しています。
+    </div>
+  </div>
+</section>
+
 <section class="section">
 <div class="head">
 <div class="section-kicker">ESTIMATE</div>
