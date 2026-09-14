@@ -764,7 +764,13 @@
 .target-summary b{color:#173f7a}
 @media(max-width:820px){.target-scenario{overflow-x:auto}.target-table{min-width:760px}.target-scenario-head{align-items:flex-start;flex-direction:column}}
 </style>
-
+<style>
+.target-basis{display:flex;gap:10px;flex-wrap:wrap;margin-bottom:14px}
+.target-basis .basis-chip{padding:8px 12px;border-radius:999px;background:#eef4ff;color:#174ea6;font-size:12px;font-weight:850;border:1px solid #dbe5f5}
+.target-table.seven-col th,.target-table.seven-col td{padding:12px 9px;font-size:12px}
+.target-table.seven-col .strong{font-weight:900;color:#173f7a}
+@media(max-width:980px){.target-scenario{overflow-x:auto}.target-table.seven-col{min-width:900px}}
+</style>
 </head>
 <body>
 <div class="wrap">
@@ -976,45 +982,7 @@
 </div>
 </section>
 
-<section class="section target-plan-section">
-  <div class="head">
-    <div class="section-kicker">TARGET PLAN</div>
-    <h2>段階別 来店・売上目標</h2>
-    <p>SEO・体験モニター施策のみの場合と、LP（ランディングページ）制作・FLYING JAPAN TRIP連携まで実施する場合の2つのシナリオで、来店転換率と売上目標を設定します。</p>
-  </div>
-  <div class="target-plan-wrap">
-    <div class="target-scenario">
-      <div class="target-scenario-head"><h3>プランA｜SEO＋体験モニター施策</h3><span class="badge">集客施策中心</span></div>
-      <table class="target-table">
-        <thead><tr><th>時点</th><th>月間PV目標</th><th>目標転換率</th><th>月間目標来店組数</th><th>1組あたり平均売上</th><th>月間売上目標</th></tr></thead>
-        <tbody>
-          <tr><td class="strong">3ヶ月目</td><td>7,000 PV</td><td class="strong">1.0%</td><td class="strong">70組</td><td>5,000円</td><td class="strong">350,000円</td></tr>
-          <tr><td class="strong">6ヶ月目</td><td>9,000 PV</td><td class="strong">1.5%</td><td class="strong">135組</td><td>5,000円</td><td class="strong">675,000円</td></tr>
-          <tr><td class="strong">12ヶ月目</td><td>12,000 PV</td><td class="strong">2.0%</td><td class="strong">240組</td><td>5,000円</td><td class="strong">1,200,000円</td></tr>
-        </tbody>
-      </table>
-    </div>
-    <div class="target-scenario">
-      <div class="target-scenario-head"><h3>プランB｜SEO＋体験モニター＋LP制作＋FLYING JAPAN TRIP連携</h3><span class="badge">集客＋転換導線改善</span></div>
-      <table class="target-table">
-        <thead><tr><th>時点</th><th>月間PV目標</th><th>目標転換率</th><th>月間目標来店組数</th><th>1組あたり平均売上</th><th>月間売上目標</th></tr></thead>
-        <tbody>
-          <tr><td class="strong">3ヶ月目</td><td>7,000 PV</td><td class="strong">1.5%</td><td class="strong">105組</td><td>5,000円</td><td class="strong">525,000円</td></tr>
-          <tr><td class="strong">6ヶ月目</td><td>9,000 PV</td><td class="strong">2.0%</td><td class="strong">180組</td><td>5,000円</td><td class="strong">900,000円</td></tr>
-          <tr><td class="strong">12ヶ月目</td><td>12,000 PV</td><td class="strong">3.0%</td><td class="strong">360組</td><td>5,000円</td><td class="strong">1,800,000円</td></tr>
-        </tbody>
-      </table>
-    </div>
-    <div class="target-summary">
-      <b>目標設定の考え方：</b>
-      SEO・体験モニター施策のみの場合は、認知・流入の拡大を中心に、来店転換率を <b>1.0% → 1.5% → 2.0%</b>へ段階的に高めることを目標とします。
-      一方、LP（ランディングページ）制作とFLYING JAPAN TRIP連携まで実施する場合は、メニュー理解から予約・決済までの導線を整備し、<b>1.5% → 2.0% → 3.0%</b>の来店転換率を目標とします。
-      ※売上は1組あたり平均5,000円として試算しています。
-    </div>
-  </div>
-</section>
-
-<section class="section">
+<section class="section target-plan-section"><div class="head"><div class="section-kicker">TARGET PLAN</div><h2>段階別 来店・売上目標</h2><p>SEO・体験モニター施策のみの場合と、LP（ランディングページ）制作・FLYING JAPAN TRIP連携まで実施する場合の2つのシナリオで、来店転換率・来店組数・来店人数・売上目標を設定します。</p></div><div class="target-plan-wrap"><div class="target-basis"><div class="basis-chip">1組＝平均2名を想定</div><div class="basis-chip">1組あたり平均客単価＝5,000円</div></div><div class="target-scenario"><div class="target-scenario-head"><h3>プランA｜SEO＋体験モニター施策</h3><span class="badge">集客施策中心</span></div><table class="target-table seven-col"><thead><tr><th>時点</th><th>月間PV目標</th><th>目標転換率</th><th>月間目標来店組数</th><th>想定来店人数</th><th>1組あたり平均客単価</th><th>月間売上目標</th></tr></thead><tbody><tr><td class="strong">3ヶ月目</td><td>7,000 PV</td><td class="strong">1.0%</td><td class="strong">70組</td><td class="strong">約140名</td><td>5,000円</td><td class="strong">350,000円</td></tr><tr><td class="strong">6ヶ月目</td><td>9,000 PV</td><td class="strong">1.5%</td><td class="strong">135組</td><td class="strong">約270名</td><td>5,000円</td><td class="strong">675,000円</td></tr><tr><td class="strong">12ヶ月目</td><td>12,000 PV</td><td class="strong">2.0%</td><td class="strong">240組</td><td class="strong">約480名</td><td>5,000円</td><td class="strong">1,200,000円</td></tr></tbody></table></div><div class="target-scenario"><div class="target-scenario-head"><h3>プランB｜SEO＋体験モニター＋LP制作＋FLYING JAPAN TRIP連携</h3><span class="badge">集客＋転換導線改善</span></div><table class="target-table seven-col"><thead><tr><th>時点</th><th>月間PV目標</th><th>目標転換率</th><th>月間目標来店組数</th><th>想定来店人数</th><th>1組あたり平均客単価</th><th>月間売上目標</th></tr></thead><tbody><tr><td class="strong">3ヶ月目</td><td>7,000 PV</td><td class="strong">1.5%</td><td class="strong">105組</td><td class="strong">約210名</td><td>5,000円</td><td class="strong">525,000円</td></tr><tr><td class="strong">6ヶ月目</td><td>9,000 PV</td><td class="strong">2.0%</td><td class="strong">180組</td><td class="strong">約360名</td><td>5,000円</td><td class="strong">900,000円</td></tr><tr><td class="strong">12ヶ月目</td><td>12,000 PV</td><td class="strong">3.0%</td><td class="strong">360組</td><td class="strong">約720名</td><td>5,000円</td><td class="strong">1,800,000円</td></tr></tbody></table></div><div class="target-summary"><b>算定基準：</b> 来店人数は<b>1組あたり平均2名</b>、売上は<b>1組あたり平均客単価5,000円</b>として算定しています。SEO・体験モニター施策のみの場合は転換率を1.0% → 1.5% → 2.0%、LP制作・FLYING JAPAN TRIP連携まで実施する場合は1.5% → 2.0% → 3.0%を目標とします。</div></div></section><section class="section">
 <div class="head">
 <div class="section-kicker">ESTIMATE</div>
 <h2>07. お見積り</h2>
@@ -1226,7 +1194,7 @@
 </div>
 </div>
 </section>
-<section class="section">
+<section class="section target-plan-section"><div class="head"><div class="section-kicker">TARGET PLAN</div><h2>단계별 방문·매출 목표</h2><p>SEO·체험단만 진행하는 경우와 LP(랜딩페이지) 제작 및 FLYING JAPAN TRIP 연동까지 진행하는 경우를 나누어 방문 전환율·방문 팀 수·예상 방문 인원·매출 목표를 설정합니다.</p></div><div class="target-plan-wrap"><div class="target-basis"><div class="basis-chip">1팀 = 평균 2명 상정</div><div class="basis-chip">1팀당 평균 객단가 = 5,000엔</div></div><div class="target-scenario"><div class="target-scenario-head"><h3>1안｜SEO + 체험단 운영</h3><span class="badge">집객 중심</span></div><table class="target-table seven-col"><thead><tr><th>구분</th><th>월간 PV</th><th>목표 전환율</th><th>목표 방문 팀 수</th><th>예상 방문 인원</th><th>1팀당 평균 객단가</th><th>월 목표 매출</th></tr></thead><tbody><tr><td class="strong">3개월차</td><td>7,000 PV</td><td class="strong">1.0%</td><td class="strong">70팀</td><td class="strong">약 140명</td><td>5,000엔</td><td class="strong">350,000엔</td></tr><tr><td class="strong">6개월차</td><td>9,000 PV</td><td class="strong">1.5%</td><td class="strong">135팀</td><td class="strong">약 270명</td><td>5,000엔</td><td class="strong">675,000엔</td></tr><tr><td class="strong">12개월차</td><td>12,000 PV</td><td class="strong">2.0%</td><td class="strong">240팀</td><td class="strong">약 480명</td><td>5,000엔</td><td class="strong">1,200,000엔</td></tr></tbody></table></div><div class="target-scenario"><div class="target-scenario-head"><h3>2안｜SEO + 체험단 + LP(랜딩페이지) + FLYING JAPAN TRIP 연동</h3><span class="badge">집객 + 전환 동선 개선</span></div><table class="target-table seven-col"><thead><tr><th>구분</th><th>월간 PV</th><th>목표 전환율</th><th>목표 방문 팀 수</th><th>예상 방문 인원</th><th>1팀당 평균 객단가</th><th>월 목표 매출</th></tr></thead><tbody><tr><td class="strong">3개월차</td><td>7,000 PV</td><td class="strong">1.5%</td><td class="strong">105팀</td><td class="strong">약 210명</td><td>5,000엔</td><td class="strong">525,000엔</td></tr><tr><td class="strong">6개월차</td><td>9,000 PV</td><td class="strong">2.0%</td><td class="strong">180팀</td><td class="strong">약 360명</td><td>5,000엔</td><td class="strong">900,000엔</td></tr><tr><td class="strong">12개월차</td><td>12,000 PV</td><td class="strong">3.0%</td><td class="strong">360팀</td><td class="strong">약 720명</td><td>5,000엔</td><td class="strong">1,800,000엔</td></tr></tbody></table></div><div class="target-summary"><b>산정 기준:</b> 예상 방문 인원은 <b>1팀당 평균 2명</b>, 매출은 <b>1팀당 평균 객단가 5,000엔</b> 기준으로 산정했습니다. SEO·체험단만 진행하는 경우에는 전환율을 1.0% → 1.5% → 2.0%, LP(랜딩페이지) 제작 및 FLYING JAPAN TRIP 연동까지 진행하는 경우에는 1.5% → 2.0% → 3.0%를 목표로 합니다.</div></div></section><section class="section">
 <div class="head">
 <div class="section-kicker">ESTIMATE</div>
 <h2>07. 견적</h2>
